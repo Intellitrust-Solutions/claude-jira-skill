@@ -90,9 +90,7 @@ cd "$TARGET_DIR"
 # ──────── Phase 1: 個人憑證（全域 .env） ────────
 ENV_FILE="$TARGET_DIR/.env"
 
-if [ -f "$ENV_FILE" ] && grep -q "^JIRA_API_TOKEN=." "$ENV_FILE" 2>/dev/null; then
-    echo "✓ .env 已存在且看起來已填，略過憑證輸入"
-elif [ "$INTERACTIVE" = "1" ]; then
+prompt_credentials() {
     echo
     echo "==> Phase 1：個人 Jira 憑證（會寫入 ${ENV_FILE}）"
     echo "    申請 token: https://id.atlassian.com/manage-profile/security/api-tokens"
@@ -117,6 +115,29 @@ JIRA_API_TOKEN=$JIRA_API_TOKEN
 EOF
     chmod 600 "$ENV_FILE"
     echo "✓ 已寫入 ${ENV_FILE}（chmod 600）"
+}
+
+run_selftest() {
+    python3 "$TARGET_DIR/scripts/jira_client.py" selftest
+}
+
+EXISTING_ENV_OK=0
+if [ -f "$ENV_FILE" ] && grep -q "^JIRA_API_TOKEN=." "$ENV_FILE" 2>/dev/null; then
+    echo "→ 偵測到既有 .env，先驗證..."
+    if run_selftest >/dev/null 2>&1; then
+        echo "✓ 既有 .env 憑證可用，略過 Phase 1"
+        EXISTING_ENV_OK=1
+    else
+        echo "✗ 既有 .env 憑證失效（401 / 連線異常）"
+        if [ "$INTERACTIVE" = "1" ]; then
+            read_tty "重新輸入憑證？[Y/n]: " REPROMPT
+            if [[ ! "$REPROMPT" =~ ^[Nn]$ ]]; then
+                prompt_credentials
+            fi
+        fi
+    fi
+elif [ "$INTERACTIVE" = "1" ]; then
+    prompt_credentials
 else
     if [ ! -f "$ENV_FILE" ]; then
         cp .env.example "$ENV_FILE"
@@ -125,10 +146,14 @@ else
     fi
 fi
 
-# ──────── 跑 selftest 驗證憑證 ────────
+# ──────── 跑 selftest 驗證最終結果 ────────
 echo
 echo "==> 驗證憑證..."
-if python3 "$TARGET_DIR/scripts/jira_client.py" selftest; then
+if [ "$EXISTING_ENV_OK" = "1" ]; then
+    SELFTEST_OK=1
+    run_selftest
+    echo "✓ Jira 連線 OK"
+elif run_selftest; then
     echo "✓ Jira 連線 OK"
     SELFTEST_OK=1
 else

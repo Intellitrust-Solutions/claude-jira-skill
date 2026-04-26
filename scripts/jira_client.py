@@ -112,7 +112,16 @@ class JiraClient:
     def whoami(self) -> dict:
         if self._me:
             return self._me
-        _, body = self.api('GET', '/rest/api/3/myself')
+        code, body = self.api('GET', '/rest/api/3/myself')
+        if code == 401:
+            raise RuntimeError(
+                'Jira 401：憑證無效（JIRA_EMAIL 或 JIRA_API_TOKEN 錯誤 / token 過期）。'
+                '到 https://id.atlassian.com/manage-profile/security/api-tokens 重新申請'
+            )
+        if code == 403:
+            raise RuntimeError(f'Jira 403：權限不足。回應：{body}')
+        if code != 200 or 'accountId' not in body:
+            raise RuntimeError(f'Jira 連線異常（status={code}）：{body}')
         self._me = {'accountId': body['accountId'], 'name': body.get('displayName')}
         return self._me
 
