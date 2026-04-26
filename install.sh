@@ -165,9 +165,11 @@ fi
 # ──────── Phase 2: 專案 Epic Key（寫入專案 CLAUDE.md） ────────
 if [ "$INTERACTIVE" = "1" ] && [ "$SELFTEST_OK" = "1" ]; then
     echo
-    echo "==> Phase 2：要不要順便為某個專案設定 Epic Key？"
-    echo "    （Epic Key 會寫進該專案的 CLAUDE.md，不寫全域）"
-    read_tty "設定專案？[y/N]: " SETUP_PROJECT
+    echo "==> Phase 2：（可選）為某個專案綁定 Epic Key"
+    echo "    Epic Key 會寫進「該專案」的 CLAUDE.md，不寫全域"
+    echo "    沒設也沒關係，之後可以在對話中對 Claude 說。"
+    echo
+    read_tty "現在要設嗎？[y/N]: " SETUP_PROJECT
     if [[ "$SETUP_PROJECT" =~ ^[Yy]$ ]]; then
         # 預設用當前 invoking 目錄（curl|bash 跑的時候 PWD 是使用者所在目錄）
         DEFAULT_PROJECT="$OLDPWD"
@@ -177,15 +179,26 @@ if [ "$INTERACTIVE" = "1" ] && [ "$SELFTEST_OK" = "1" ]; then
             DEFAULT_PROJECT="$HOME"
         fi
 
-        read_tty "專案目錄路徑 [$DEFAULT_PROJECT]: " PROJECT_DIR
-        PROJECT_DIR="${PROJECT_DIR:-$DEFAULT_PROJECT}"
+        # 先用 Y/n 確認預設目錄，避免把確認當成路徑輸入
+        echo
+        echo "    當前目錄為 ${DEFAULT_PROJECT}"
+        read_tty "用這個當作專案根目錄嗎？[Y/n]: " USE_DEFAULT
+        if [[ "$USE_DEFAULT" =~ ^[Nn]$ ]]; then
+            read_tty "請輸入專案完整路徑（例如 /var/www/myproject）: " PROJECT_DIR
+        else
+            PROJECT_DIR="$DEFAULT_PROJECT"
+        fi
         # 展開 ~
         PROJECT_DIR="${PROJECT_DIR/#\~/$HOME}"
 
         if [ ! -d "$PROJECT_DIR" ]; then
             echo "✗ 目錄不存在：${PROJECT_DIR}，跳過 Phase 2"
         else
-            read_tty "Epic Key（例如 PROJECT-491）: " EPIC_KEY
+            echo "✓ 專案目錄：$PROJECT_DIR"
+            echo
+            echo "    Epic Key 是 Jira 上你要管理的「大型工作」票的編號"
+            echo "    例如 PROJECT-491、SCRUM-12（不是專案目錄、不是 Y/N）"
+            read_tty "Epic Key: " EPIC_KEY
             if [ -n "$EPIC_KEY" ]; then
                 # 先驗證屬主
                 echo "→ 驗證 $EPIC_KEY 屬於你..."
