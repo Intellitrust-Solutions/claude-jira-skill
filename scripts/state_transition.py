@@ -4,16 +4,16 @@
 
 用法：
     # 列出某 issue 可用 transitions
-    python3 state_transition.py --list PROJECT-491
+    python3 state_transition.py --list PROJECT-XXX
 
     # 批次轉換（keys.txt 一行一個 key）
     python3 state_transition.py --keys keys.txt --target 完成
 
     # 從測試結果推進
-    python3 state_transition.py --from /tmp/module_test_results.json
+    python3 state_transition.py --from ~/.cache/jira-skill/module_test_results.json
 
-    # Epic 底下所有子項統一推到某狀態
-    python3 state_transition.py --all-under PROJECT-491 --target 進行中
+    # Epic 底下所有子項統一推到某狀態（可省略 KEY，讀 JIRA_EPIC_KEY env）
+    python3 state_transition.py --all-under PROJECT-XXX --target 進行中
 """
 import json, sys, time, argparse
 from pathlib import Path
@@ -23,7 +23,7 @@ if hasattr(_sys.stdout, "reconfigure"): _sys.stdout.reconfigure(encoding="utf-8"
 from collections import deque
 
 sys.path.insert(0, str(Path(__file__).parent))
-from jira_client import JiraClient
+from jira_client import JiraClient, output_path, resolve_epic_key
 
 
 def find_path(jc: JiraClient, key: str, target: str, max_hops: int = 6) -> list[str]:
@@ -95,7 +95,8 @@ def _cli():
     ap.add_argument('--list', help='列出某 issue 的可用 transitions')
     ap.add_argument('--keys', help='keys.txt 檔案路徑，每行一 key')
     ap.add_argument('--from', dest='from_json', help='從測試結果 JSON 決定要推哪些')
-    ap.add_argument('--all-under', help='Epic key，推所有子項')
+    ap.add_argument('--all-under', nargs='?', const='', default=None,
+                    help='Epic key，推所有子項（可省略，會讀 JIRA_EPIC_KEY env）')
     ap.add_argument('--target', help='目標狀態名稱，例如「完成」')
     ap.add_argument('--include-others', action='store_true',
                     help='⚠ 危險：操作非本人 issue（預設只動自己的）')
@@ -134,9 +135,10 @@ def _cli():
             print('⚠ 偵測到舊格式（無 module_key）— 請用更新後的 module_test.php.tmpl 重跑測試')
             print('   或手動轉成 [{"key": "..."}] / {"tests": {...}} 格式')
             sys.exit(1)
-    elif args.all_under:
-        jc.assert_mine(args.all_under, '操作 Epic')
-        jql = f'parent={args.all_under}'
+    elif args.all_under is not None:
+        epic = resolve_epic_key(args.all_under or None)
+        jc.assert_mine(epic, '操作 Epic')
+        jql = f'parent={epic}'
         if not args.include_others:
             jql += ' AND (assignee=currentUser() OR reporter=currentUser())'
         code, body = jc.api('POST', '/rest/api/3/search/jql',
@@ -156,9 +158,11 @@ def _cli():
 
     print(f'批次推進 {len(keys)} 項 → {args.target}')
     result = batch(jc, keys, args.target, args.delay)
-    Path('/tmp/jira_transition_result.json').write_text(
-        json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
+    out = output_path('transition_result.json')
+    out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
+    out.chmod(0o600)
     print(f'ok: {len(result["ok"])}, failed: {len(result["failed"])}')
+    print(f'寫入: {out}')
 
 
 if __name__ == '__main__':

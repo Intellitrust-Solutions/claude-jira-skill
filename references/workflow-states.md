@@ -29,9 +29,10 @@
 | 同一 issue 在不同狀態時可用的 transitions 不同 | 每步驟都重新查 |
 | 專案 admin 可能改名或新增狀態 | 依名稱比對，別依 id |
 
-## 常見 ID（SleepingBeauty 專案）
+## 範例 ID（取自 **SleepingBeauty 案例**，僅作 case study）
 
-僅供參考，**實際請查**：
+> 此區塊為實作案例的 ID 參考，**你的專案幾乎一定不同**。實際請查：
+> `python3 scripts/state_transition.py --list <你的 KEY>`
 
 | Transition | ID | 去向 |
 |-----------|-----|------|
@@ -57,6 +58,6 @@
 ## 批次狀態轉換注意事項
 
 1. 失敗立刻停，不繼續推進錯誤狀態
-2. 結果寫 `/tmp/jira_transition_result.json`
+2. 結果寫 `~/.cache/jira-skill/transition_result.json`（chmod 0600）
 3. 每次 API 間隔 ≥ 0.04s 避免被限速
 4. 中文 payload 必用 `ensure_ascii=True`

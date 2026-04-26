@@ -3,10 +3,10 @@
 模組級整合測試樣板（Python / Django / FastAPI）
 
 使用方式：
-1. 複製到 /tmp/module_tests.py 並改寫測試內容
+1. 複製到 ~/.cache/jira-skill/module_tests.py 並改寫測試內容
 2. 在頂端 MODULE_KEYS 字典填入「模組名稱 → Jira key + subtask keys」
-3. 執行：python3 /tmp/module_tests.py
-4. 結果寫入 /tmp/module_test_results.json，可餵給 state_transition.py
+3. 執行：python3 ~/.cache/jira-skill/module_tests.py
+4. 結果寫入 ~/.cache/jira-skill/module_test_results.json，可餵給 state_transition.py
 """
 import json
 import sys
@@ -22,12 +22,12 @@ from pathlib import Path
 # ──────── 模組 → Jira key 對應 ────────
 MODULE_KEYS = {
     '基礎建設': {
-        'module_key': 'PROJECT-3663',
-        'subtask_keys': ['PROJECT-3673', 'PROJECT-3674'],
+        'module_key': 'PROJECT-100',
+        'subtask_keys': ['PROJECT-101', 'PROJECT-102'],
     },
     '使用者認證': {
-        'module_key': 'PROJECT-3664',
-        'subtask_keys': ['PROJECT-3682', 'PROJECT-3683'],
+        'module_key': 'PROJECT-200',
+        'subtask_keys': ['PROJECT-201', 'PROJECT-202'],
     },
     # ...
 }
@@ -102,8 +102,12 @@ def main():
             'failed': sum(1 for t in tests.values() if t['status'] == 'FAIL'),
         },
     }
-    Path('/tmp/module_test_results.json').write_text(
-        json.dumps(output, ensure_ascii=False, indent=2))
+    out_dir = Path.home() / '.cache' / 'jira-skill'
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir.chmod(0o700)
+    out_file = out_dir / 'module_test_results.json'
+    out_file.write_text(json.dumps(output, ensure_ascii=False, indent=2))
+    out_file.chmod(0o600)
 
     print(f"PASS={output['summary']['passed']} / 共 {output['summary']['total']}")
     print('─' * 70)

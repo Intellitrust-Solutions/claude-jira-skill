@@ -11,12 +11,12 @@ Jira API 共用 client：
     jc = JiraClient.from_env()
     jc.whoami()
     jc.issuetypes()
-    jc.api('GET', '/rest/api/3/issue/PROJECT-491')
+    jc.api('GET', '/rest/api/3/issue/PROJECT-XXX')
 
 CLI:
     python3 jira_client.py whoami
     python3 jira_client.py issuetypes
-    python3 jira_client.py transitions PROJECT-491
+    python3 jira_client.py transitions PROJECT-XXX
 """
 import os, json, base64, sys, urllib.request, urllib.error
 from pathlib import Path
@@ -26,8 +26,35 @@ if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
 
+def output_path(filename: str) -> Path:
+    """所有腳本輸出統一寫到 ~/.cache/jira-skill/，避免 /tmp 被同機其他使用者讀取。"""
+    cache = Path.home() / '.cache' / 'jira-skill'
+    cache.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(cache, 0o700)
+    except Exception:
+        pass
+    p = cache / filename
+    return p
+
+
+def resolve_epic_key(cli_value: str | None) -> str:
+    """Epic Key 解析優先序：CLI 參數 > JIRA_EPIC_KEY env var。都沒有 raise。"""
+    val = cli_value or os.environ.get('JIRA_EPIC_KEY')
+    if not val:
+        raise SystemExit(
+            '缺少 Epic Key：請以 CLI 參數提供，或在專案 .env 設 JIRA_EPIC_KEY=...'
+        )
+    return val
+
+
 class JiraClient:
     def __init__(self, base_url: str, email: str, token: str):
+        if not base_url.startswith('https://'):
+            raise RuntimeError(
+                f'JIRA_BASE_URL 必須以 https:// 開頭（避免 token 以明文傳輸），'
+                f'目前為: {base_url}'
+            )
         self.base = base_url.rstrip('/')
         self.headers = {
             'Authorization': 'Basic ' + base64.b64encode(f'{email}:{token}'.encode()).decode(),
@@ -38,23 +65,31 @@ class JiraClient:
 
     @classmethod
     def from_env(cls, env_file: str | None = None) -> 'JiraClient':
-        # 優先序：參數指定 .env > 當前目錄 .env > 環境變數
-        # 也可用 JIRA_ENV_FILE 環境變數指定額外路徑
+        # 優先序：參數指定 .env > JIRA_ENV_FILE > 當前目錄 .env > 全域 ~/.claude/skills/jira/.env > 環境變數
+        # JIRA_EPIC_KEY 也會一併讀入 os.environ，供 resolve_epic_key() 使用
         vars_needed = ['JIRA_BASE_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN']
-        values = {k: os.environ.get(k) for k in vars_needed}
+        optional_vars = ['JIRA_EPIC_KEY']
+        all_vars = vars_needed + optional_vars
+        values = {k: os.environ.get(k) for k in all_vars}
 
-        candidates = [env_file, os.environ.get('JIRA_ENV_FILE'), '.env']
+        global_env = Path.home() / '.claude' / 'skills' / 'jira' / '.env'
+        candidates = [env_file, os.environ.get('JIRA_ENV_FILE'), '.env', str(global_env)]
         for candidate in candidates:
             if candidate and Path(candidate).exists():
                 for line in Path(candidate).read_text(encoding='utf-8').splitlines():
                     if '=' in line and not line.strip().startswith('#'):
                         k, v = line.split('=', 1)
                         k = k.strip()
-                        if k in vars_needed and not values.get(k):
+                        if k in all_vars and not values.get(k):
                             values[k] = v.strip().strip('"').strip("'")
+                # 讀完一個檔就停（依優先序）
                 break
 
-        missing = [k for k, v in values.items() if not v]
+        # JIRA_EPIC_KEY 注入 os.environ，讓 resolve_epic_key() 取得
+        if values.get('JIRA_EPIC_KEY') and not os.environ.get('JIRA_EPIC_KEY'):
+            os.environ['JIRA_EPIC_KEY'] = values['JIRA_EPIC_KEY']
+
+        missing = [k for k in vars_needed if not values.get(k)]
         if missing:
             raise RuntimeError(f'缺少 Jira 憑證: {", ".join(missing)}')
         return cls(values['JIRA_BASE_URL'], values['JIRA_EMAIL'], values['JIRA_API_TOKEN'])

@@ -4,14 +4,14 @@
 
 用法：
     # 單一 key 檢查
-    python3 ownership_filter.py --check PROJECT-491
+    python3 ownership_filter.py --check PROJECT-XXX
 
     # 批次過濾（stdin 一行一 key）
     cat keys.txt | python3 ownership_filter.py --filter
     # 輸出僅自己的 keys
 
     # Epic 子項用 JQL 過濾
-    python3 ownership_filter.py --under PROJECT-491
+    python3 ownership_filter.py --under PROJECT-XXX
 """
 import sys, argparse
 from pathlib import Path

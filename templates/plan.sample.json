@@ -1,10 +1,10 @@
 {
   "_comment": "structure_builder.py 的輸入範例。每個 middle 對應一個模組，內含 subtasks。",
-  "epic_key": "PROJECT-491",
+  "epic_key": "PROJECT-XXX",
   "_optional": {
     "middle_type_id": "10004",
     "subtask_type_id": "10002",
-    "assignee_account_id": "若不填預設使用 currentUser"
+    "assignee_account_id": "若不填預設使用 currentUser；指定他人需加 --include-others"
   },
   "middles": [
     {

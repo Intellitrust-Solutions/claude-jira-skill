@@ -8,13 +8,13 @@
 
 用法：
     # 預覽（預設只列出自己的）
-    python3 delete_subtree.py PROJECT-491
+    python3 delete_subtree.py PROJECT-XXX
 
     # 真的刪自己的
-    python3 delete_subtree.py PROJECT-491 --yes
+    python3 delete_subtree.py PROJECT-XXX --yes
 
     # 強制刪別人的（危險）
-    python3 delete_subtree.py PROJECT-491 --yes --include-others
+    python3 delete_subtree.py PROJECT-XXX --yes --include-others
 """
 import json, sys, time, argparse
 from pathlib import Path
@@ -23,12 +23,12 @@ import sys as _sys
 if hasattr(_sys.stdout, "reconfigure"): _sys.stdout.reconfigure(encoding="utf-8")
 
 sys.path.insert(0, str(Path(__file__).parent))
-from jira_client import JiraClient
+from jira_client import JiraClient, output_path, resolve_epic_key
 
 
 def _cli():
     ap = argparse.ArgumentParser()
-    ap.add_argument('epic_key')
+    ap.add_argument('epic_key', nargs='?', help='Epic key（可省略，會讀 JIRA_EPIC_KEY env）')
     ap.add_argument('--yes', action='store_true', help='確認執行（否則只 dry-run）')
     ap.add_argument('--include-others', action='store_true',
                     help='⚠ 危險：包含他人的 issue（預設只刪自己的）')
@@ -36,9 +36,10 @@ def _cli():
     args = ap.parse_args()
 
     jc = JiraClient.from_env()
-    jc.assert_mine(args.epic_key, '操作 Epic')  # 連 Epic 本身都要是自己的
+    epic = resolve_epic_key(epic)
+    jc.assert_mine(epic, '操作 Epic')  # 連 Epic 本身都要是自己的
 
-    jql = f'parent={args.epic_key}'
+    jql = f'parent={epic}'
     if not args.include_others:
         jql += ' AND (assignee=currentUser() OR reporter=currentUser())'
     else:
@@ -48,7 +49,7 @@ def _cli():
         {'jql': jql, 'fields': ['key', 'summary', 'status'], 'maxResults': 500})
 
     issues = body.get('issues', [])
-    print(f'找到 {len(issues)} 個中型任務（parent={args.epic_key}）')
+    print(f'找到 {len(issues)} 個中型任務（parent={epic}）')
     for i in issues:
         print(f"  {i['key']:14} | {i['fields']['status']['name']:8} | {i['fields']['summary']}")
 
@@ -67,11 +68,14 @@ def _cli():
             failed.append({'key': k, 'code': c})
         time.sleep(args.delay)
 
-    Path('/tmp/jira_delete_result.json').write_text(
-        json.dumps({'epic': args.epic_key, 'deleted': deleted, 'failed': failed},
+    out = output_path('delete_result.json')
+    out.write_text(
+        json.dumps({'epic': epic, 'deleted': deleted, 'failed': failed},
                    ensure_ascii=False, indent=2),
         encoding='utf-8')
+    out.chmod(0o600)
     print(f'刪除: {deleted}/{len(issues)}, 失敗: {len(failed)}')
+    print(f'寫入: {out}')
 
 
 if __name__ == '__main__':

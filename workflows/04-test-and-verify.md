@@ -6,7 +6,7 @@
 |------|---------|
 | 測試框架 + 統一輸出格式 | ✅ 此 skill（樣板 + state_transition 串接） |
 | **實際測試內容**（驗證什麼 model/service/route） | ✅ **執行 skill 的當下，Claude 根據該專案 codebase 客製化** |
-| Jira key 對應表 | ✅ 由 build 階段產出的 `/tmp/jira_build_result.json` 自動帶入 |
+| Jira key 對應表 | ✅ 由 build 階段產出的 `~/.cache/jira-skill/build_result.json` 自動帶入 |
 
 > Skill 不提供「跨專案通用測試」— 每個專案的測試內容必須由該次 Claude Code 對話**根據實際 codebase 撰寫**，否則只是空殼。
 
@@ -38,7 +38,7 @@
 ## 跑測試
 
 ```bash
-php /tmp/module_tests.php
+php ~/.cache/jira-skill/module_tests.php
 ```
 
 輸出格式：
@@ -52,7 +52,7 @@ php /tmp/module_tests.php
 ## 測試結果 → Jira 狀態映射
 
 ```bash
-python3 scripts/state_transition.py --from /tmp/module_test_results.json
+python3 scripts/state_transition.py --from ~/.cache/jira-skill/module_test_results.json
 ```
 
 規則：

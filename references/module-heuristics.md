@@ -70,7 +70,9 @@ NotificationService → 系統通知模組（若跨多功能才獨立）
 
 ## 典型專案的模組範例
 
-### 美容業 ERP（類似 SleepingBeauty）
+> 以下取自 **SleepingBeauty 實作案例**，純作 reference。實際模組需由 Claude 依當前 codebase 重新識別。
+
+### 美容業 ERP（SleepingBeauty 案例）
 1. 基礎建設與安全防護
 2. 使用者認證與 2FA
 3. 個人設定

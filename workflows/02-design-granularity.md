@@ -54,7 +54,9 @@
 | 16–22h | 6–8 |
 | > 22h | 考慮拆成兩個模組 |
 
-## 範例：SleepingBeauty（已實作）
+## 範例：SleepingBeauty 案例（實作參考）
+
+> 此為**實作案例**，數字僅供顆粒度感覺。你的專案模組數與工時必定不同 —— 由 Claude 依當前 codebase 估。
 
 10 模組 → 54 subtasks，每 subtask 平均 ~2.7h，全部通過模組級測試。
 

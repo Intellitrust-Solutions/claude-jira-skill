@@ -10,7 +10,9 @@
 
 set -euo pipefail
 
-REPO_URL="https://github.com/Intellitrust-Solutions/claude-jira-skill.git"
+# 可用環境變數覆寫（例如 fork 後自用）：
+#   REPO_URL=https://github.com/your-org/your-fork.git curl -sL ... | bash
+REPO_URL="${REPO_URL:-https://github.com/Intellitrust-Solutions/claude-jira-skill.git}"
 DEFAULT_TARGET="${HOME}/.claude/skills/jira"
 TARGET_DIR="${INSTALL_DIR:-$DEFAULT_TARGET}"
 

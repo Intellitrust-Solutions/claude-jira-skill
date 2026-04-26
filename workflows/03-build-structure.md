@@ -2,7 +2,7 @@
 
 ## 前置檢查
 
-1. 已有 Epic Key（例：`PROJECT-491`）
+1. 已有 Epic Key（例：`PROJECT-XXX`）
 2. 階段 1、2 已完成（模組清單 + subtask 清單 + 各自的 due date）
 3. `.env` 已設定 Jira 憑證
 
@@ -50,7 +50,7 @@ python3 scripts/delete_subtree.py <EPIC_KEY> --yes
 準備結構定義 JSON（或 Python dict），呼叫：
 
 ```bash
-python3 scripts/structure_builder.py --epic PROJECT-491 --plan plan.json
+python3 scripts/structure_builder.py --plan plan.json
 ```
 
 `plan.json` 格式：
@@ -83,7 +83,7 @@ python3 scripts/query_tree.py <EPIC_KEY>
 2. **subtask 的 parent 必須是中型**，不能直接掛 Epic
 3. **中文 summary 要用 `ensure_ascii=True` 組 JSON**，否則 terminal 會亂碼
 4. **API 限速**：建議每請求間隔 0.05–0.1 秒
-5. **結果寫 `/tmp/jira_result.json`**，下一階段才能用
+5. **結果寫 `~/.cache/jira-skill/build_result.json`**（chmod 0600，避免同機其他使用者讀取），下一階段才能用
 
 ## 下一步
 

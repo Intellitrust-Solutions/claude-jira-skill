@@ -4,10 +4,10 @@
 
 plan.json 格式：
 {
-    "epic_key": "PROJECT-491",
+    "epic_key": "PROJECT-XXX",
     "middle_type_id": "10004",     // 可選，未給則自動從 Epic 的 issuetype 推導
     "subtask_type_id": "10002",    // 可選
-    "assignee_account_id": "712020:...",  // 可選，未給則使用目前使用者
+    "assignee_account_id": "712020:...",  // 可選，須加 --include-others 才會生效
     "middles": [
         {
             "summary": "基礎建設與安全防護",
@@ -20,7 +20,7 @@ plan.json 格式：
     ]
 }
 
-結果寫入 /tmp/jira_build_result.json
+結果寫入 ~/.cache/jira-skill/build_result.json（chmod 0600）
 """
 import json, sys, time, argparse
 from pathlib import Path
@@ -29,7 +29,7 @@ import sys as _sys
 if hasattr(_sys.stdout, "reconfigure"): _sys.stdout.reconfigure(encoding="utf-8")
 
 sys.path.insert(0, str(Path(__file__).parent))
-from jira_client import JiraClient
+from jira_client import JiraClient, output_path
 
 
 def auto_resolve_types(jc: JiraClient) -> tuple[str, str]:
@@ -46,7 +46,8 @@ def auto_resolve_types(jc: JiraClient) -> tuple[str, str]:
     return middle['id'], subtask['id']
 
 
-def build(plan_path: str, dry_run: bool = False, delay: float = 0.06) -> dict:
+def build(plan_path: str, dry_run: bool = False, delay: float = 0.06,
+          include_others: bool = False) -> dict:
     plan = json.loads(Path(plan_path).read_text(encoding='utf-8'))
     jc = JiraClient.from_env()
 
@@ -63,11 +64,17 @@ def build(plan_path: str, dry_run: bool = False, delay: float = 0.06) -> dict:
         middle_type = middle_type or mt
         subtask_type = subtask_type or st
 
-    # assignee 預設為當前使用者；若 plan 指定他人，警告
+    # assignee 預設為當前使用者；plan 指定他人需 --include-others
     me = jc.whoami()['accountId']
-    account = plan.get('assignee_account_id') or me
+    plan_account = plan.get('assignee_account_id')
+    if plan_account and plan_account != me and not include_others:
+        raise PermissionError(
+            f'plan.json 指定 assignee={plan_account}（非當前使用者 {me}）。'
+            f'若確認要把任務 assign 給他人，請加 --include-others 旗標。'
+        )
+    account = plan_account if (include_others and plan_account) else me
     if account != me:
-        print(f'⚠ plan 指定 assignee 為 {account}（非當前使用者 {me}）')
+        print(f'⚠ assignee = {account}（非當前使用者，--include-others 已啟用）')
 
     result = {'epic': epic_key, 'middles': [], 'subtasks': [], 'failed': []}
 
@@ -114,8 +121,9 @@ def build(plan_path: str, dry_run: bool = False, delay: float = 0.06) -> dict:
                 result['failed'].append({'subtask': s['summary'], 'parent': mid_key, 'code': sc})
             time.sleep(delay)
 
-    out = '/tmp/jira_build_result.json'
-    Path(out).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
+    out = output_path('build_result.json')
+    out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
+    out.chmod(0o600)
     print(f'middles: {len(result["middles"])}, subtasks: {len(result["subtasks"])}, failed: {len(result["failed"])}')
     print(f'寫入: {out}')
     return result
@@ -126,8 +134,10 @@ def _cli():
     ap.add_argument('--plan', required=True, help='plan.json 檔案路徑')
     ap.add_argument('--dry-run', action='store_true')
     ap.add_argument('--delay', type=float, default=0.06)
+    ap.add_argument('--include-others', action='store_true',
+                    help='⚠ 危險：允許把任務 assign 給非當前使用者（預設只 assign 給自己）')
     args = ap.parse_args()
-    build(args.plan, args.dry_run, args.delay)
+    build(args.plan, args.dry_run, args.delay, args.include_others)
 
 
 if __name__ == '__main__':

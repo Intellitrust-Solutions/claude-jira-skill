@@ -47,10 +47,10 @@ Epic（大型工作 / hierarchyLevel=1）
    JIRA_API_TOKEN=xxxx
    ```
 2. **Python 3.7+**（用內建 `urllib` + `json`，無需 pip 套件）
-3. **Epic Key**（專案層，例如 `PROJECT-491`）— 來源優先序：
-   1. 使用者在對話中明講（例如「在 PROJECT-491 底下建…」）
-   2. 專案 `CLAUDE.md` 中的 Epic 標註（例如 `本專案 Epic: PROJECT-491`）
-   3. 專案 `.env` 的 `JIRA_EPIC_KEY`
+3. **Epic Key**（專案層，例如 `PROJECT-XXX`）— 來源優先序：
+   1. 使用者在對話中明講（例如「在 PROJECT-XXX 底下建…」）
+   2. 專案 `CLAUDE.md` 中的 Epic 標註（例如 `本專案 Epic: PROJECT-XXX`）
+   3. 專案 `.env` 的 `JIRA_EPIC_KEY=PROJECT-XXX`（已實作於 `jira_client.py:resolve_epic_key()`）
    4. 都沒有 → skill 先詢問，**禁止猜測**
 
 > Epic Key 刻意不放全域 .env：同個 Jira 帳號可能管多個專案，全域只能塞一個會誤改。
@@ -74,10 +74,10 @@ Epic（大型工作 / hierarchyLevel=1）
 
 ```bash
 # 1. 驗證 token + accountId 可用
-python3 .claude/skills/jira/scripts/jira_client.py selftest
+python3 ~/.claude/skills/jira/scripts/jira_client.py selftest
 
 # 2. 確認某 issue 屬於自己
-python3 .claude/skills/jira/scripts/jira_client.py check-mine PROJECT-491
+python3 ~/.claude/skills/jira/scripts/jira_client.py check-mine PROJECT-XXX
 ```
 
 ---

@@ -57,20 +57,20 @@ Script 會自動：
 ### 情境 A：新建結構，全部預設進行中
 建立後不轉狀態（預設落在「待辦事項」）→ 手動 transition 到「進行中」：
 ```bash
-python3 scripts/state_transition.py --all-under PROJECT-491 --target 進行中
+python3 scripts/state_transition.py --all-under PROJECT-XXX --target 進行中
 ```
 
 ### 情境 B：測試通過的自動推「完成」
 ```bash
 # 1. 跑測試
-php /tmp/module_tests.php
+php ~/.cache/jira-skill/module_tests.php
 # 2. 根據結果推進
-python3 scripts/state_transition.py --from /tmp/module_test_results.json
+python3 scripts/state_transition.py --from ~/.cache/jira-skill/module_test_results.json
 ```
 
 ### 情境 C：全部退回重測
 ```bash
-python3 scripts/state_transition.py --all-under PROJECT-491 --target 進行中
+python3 scripts/state_transition.py --all-under PROJECT-XXX --target 進行中
 ```
 
 ## 批次原則

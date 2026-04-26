@@ -3,12 +3,12 @@
  * 模組級整合測試樣板（Laravel / PHP）— 統一輸出格式
  *
  * 使用方式：
- * 1. 複製到 /tmp/module_tests.php 並改寫測試內容
+ * 1. 複製到 ~/.cache/jira-skill/module_tests.php 並改寫測試內容
  * 2. 在頂端 $module_keys 陣列填入「模組名稱 → Jira key + subtask keys」對應
- *    （從 /tmp/jira_build_result.json 取，或執行 query_tree.py 取）
- * 3. 執行：php /tmp/module_tests.php
- * 4. 結果寫入 /tmp/module_test_results.json，可直接餵 state_transition.py：
- *      python3 state_transition.py --from /tmp/module_test_results.json --target 完成
+ *    （從 ~/.cache/jira-skill/build_result.json 取，或執行 query_tree.py 取）
+ * 3. 執行：php ~/.cache/jira-skill/module_tests.php
+ * 4. 結果寫入 ~/.cache/jira-skill/module_test_results.json，可直接餵 state_transition.py：
+ *      python3 state_transition.py --from ~/.cache/jira-skill/module_test_results.json --target 完成
  */
 require 'vendor/autoload.php';
 $app = require 'bootstrap/app.php';
@@ -21,12 +21,12 @@ use Illuminate\Support\Facades\Route;
 // 範例：實際填入 query_tree.py --json 取得的 key
 $module_keys = [
     '基礎建設與安全防護' => [
-        'module_key'   => 'PROJECT-3663',
-        'subtask_keys' => ['PROJECT-3673', 'PROJECT-3674', 'PROJECT-3675'],
+        'module_key'   => 'PROJECT-100',
+        'subtask_keys' => ['PROJECT-101', 'PROJECT-102', 'PROJECT-103'],
     ],
     '使用者認證與 2FA' => [
-        'module_key'   => 'PROJECT-3664',
-        'subtask_keys' => ['PROJECT-3682', 'PROJECT-3683'],
+        'module_key'   => 'PROJECT-200',
+        'subtask_keys' => ['PROJECT-201', 'PROJECT-202'],
     ],
     // ...
 ];
@@ -86,7 +86,11 @@ $output = [
     ],
 ];
 
-file_put_contents('/tmp/module_test_results.json',
+$home = getenv('HOME') ?: '/tmp';
+$out_dir = "$home/.cache/jira-skill";
+@mkdir($out_dir, 0700, true);
+$out_file = "$out_dir/module_test_results.json";
+file_put_contents($out_file,
     json_encode($output, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
 echo "PASS={$output['summary']['passed']} / 共 {$output['summary']['total']}".PHP_EOL;

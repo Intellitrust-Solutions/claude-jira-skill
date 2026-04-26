@@ -2,23 +2,24 @@
  * 模組級整合測試樣板（Node.js / TypeScript / Next.js）
  *
  * 使用方式：
- * 1. 複製到 /tmp/module_tests.ts 並改寫測試內容
+ * 1. 複製到 ~/.cache/jira-skill/module_tests.ts 並改寫測試內容
  * 2. 在頂端 MODULE_KEYS 填入「模組名稱 → Jira key」對應
- * 3. 執行：npx tsx /tmp/module_tests.ts （或 ts-node）
- * 4. 結果寫入 /tmp/module_test_results.json，可餵 state_transition.py
+ * 3. 執行：npx tsx ~/.cache/jira-skill/module_tests.ts （或 ts-node）
+ * 4. 結果寫入 ~/.cache/jira-skill/module_test_results.json，可餵 state_transition.py
  */
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 
 // ──────── 模組 → Jira key 對應 ────────
 const MODULE_KEYS: Record<string, { module_key: string; subtask_keys: string[] }> = {
   '基礎建設': {
-    module_key: 'PROJECT-3663',
-    subtask_keys: ['PROJECT-3673', 'PROJECT-3674'],
+    module_key: 'PROJECT-100',
+    subtask_keys: ['PROJECT-101', 'PROJECT-102'],
   },
   '使用者認證': {
-    module_key: 'PROJECT-3664',
-    subtask_keys: ['PROJECT-3682', 'PROJECT-3683'],
+    module_key: 'PROJECT-200',
+    subtask_keys: ['PROJECT-201', 'PROJECT-202'],
   },
 };
 
@@ -81,7 +82,11 @@ type Result = { status: 'PASS' | 'FAIL'; detail: string; module_key: string | nu
     summary: { total: Object.keys(tests).length, passed, failed },
   };
 
-  writeFileSync('/tmp/module_test_results.json', JSON.stringify(output, null, 2));
+  const outDir = path.join(os.homedir(), '.cache', 'jira-skill');
+  mkdirSync(outDir, { recursive: true, mode: 0o700 });
+  const outFile = path.join(outDir, 'module_test_results.json');
+  writeFileSync(outFile, JSON.stringify(output, null, 2));
+  chmodSync(outFile, 0o600);
 
   console.log(`PASS=${passed} / 共 ${Object.keys(tests).length}`);
   console.log('─'.repeat(70));

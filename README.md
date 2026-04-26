@@ -56,9 +56,9 @@ JIRA_API_TOKEN=...
 
 | 放法 | 範例 | 適用情境 |
 |---|---|---|
-| **專案 `CLAUDE.md`**（推薦） | `本專案 Epic: PROJECT-491` | Claude 自動讀進 context，不用每次講 |
-| 對話時直接講 | 「在 PROJECT-491 底下建模組」 | 最彈性 |
-| 專案 `.env` | `JIRA_EPIC_KEY=PROJECT-491` | CI / 直接跑 CLI |
+| **專案 `CLAUDE.md`**（推薦） | `本專案 Epic: PROJECT-XXX` | Claude 自動讀進 context，不用每次講 |
+| 對話時直接講 | 「在 PROJECT-XXX 底下建模組」 | 最彈性 |
+| 專案 `.env` | `JIRA_EPIC_KEY=PROJECT-XXX` | CI / 直接跑 CLI |
 
 **為什麼不放全域**：Epic Key 跟著專案走，不該跟個人憑證綁在一起。例如同一個 Jira 帳號可能要管 5 個專案的 Epic，全域只塞一個就會誤改。
 
@@ -67,16 +67,16 @@ JIRA_API_TOKEN=...
 在 Claude Code 中觸發：
 
 - 「幫我分析專案建 Jira 結構」
-- 「在 PROJECT-491 底下建 modules 和 tasks」
+- 「在 PROJECT-XXX 底下建 modules 和 tasks」
 - 「依完成度更新狀態」
 
-或直接呼叫 CLI：
+或直接呼叫 CLI（裝完後用 `~/.claude/skills/jira/` 為基準）：
 
 ```bash
-python3 scripts/jira_client.py whoami
-python3 scripts/jira_client.py issuetypes
-python3 scripts/jira_client.py transitions PROJECT-491
-python3 scripts/jira_client.py check-mine PROJECT-491
+python3 ~/.claude/skills/jira/scripts/jira_client.py whoami
+python3 ~/.claude/skills/jira/scripts/jira_client.py issuetypes
+python3 ~/.claude/skills/jira/scripts/jira_client.py transitions PROJECT-XXX
+python3 ~/.claude/skills/jira/scripts/jira_client.py check-mine PROJECT-XXX
 ```
 
 ## 結構
