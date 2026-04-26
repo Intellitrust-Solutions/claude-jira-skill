@@ -1,0 +1,98 @@
+<?php
+/**
+ * 模組級整合測試樣板（Laravel / PHP）— 統一輸出格式
+ *
+ * 使用方式：
+ * 1. 複製到 /tmp/module_tests.php 並改寫測試內容
+ * 2. 在頂端 $module_keys 陣列填入「模組名稱 → Jira key + subtask keys」對應
+ *    （從 /tmp/jira_build_result.json 取，或執行 query_tree.py 取）
+ * 3. 執行：php /tmp/module_tests.php
+ * 4. 結果寫入 /tmp/module_test_results.json，可直接餵 state_transition.py：
+ *      python3 state_transition.py --from /tmp/module_test_results.json --target 完成
+ */
+require 'vendor/autoload.php';
+$app = require 'bootstrap/app.php';
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
+
+// ──────── 模組 → Jira key 對應 ────────
+// 範例：實際填入 query_tree.py --json 取得的 key
+$module_keys = [
+    '基礎建設與安全防護' => [
+        'module_key'   => 'PROJECT-3663',
+        'subtask_keys' => ['PROJECT-3673', 'PROJECT-3674', 'PROJECT-3675'],
+    ],
+    '使用者認證與 2FA' => [
+        'module_key'   => 'PROJECT-3664',
+        'subtask_keys' => ['PROJECT-3682', 'PROJECT-3683'],
+    ],
+    // ...
+];
+
+// ──────── 小工具 ────────
+$routes = collect(Route::getRoutes())->map(fn($r) => $r->uri())->all();
+function assertTrue($cond, $msg) { if (!$cond) throw new Exception($msg); }
+function routeExists(string $uri): bool { global $routes; return in_array($uri, $routes); }
+function fileOk(string $p): bool {
+    return file_exists(base_path($p)) || file_exists(resource_path($p)) || file_exists(app_path($p));
+}
+
+// ──────── 模組測試 ────────
+$modules = [];
+
+$modules['基礎建設與安全防護'] = function () {
+    assertTrue(file_exists(public_path('build/manifest.json')), 'Vite 未 build');
+    foreach (['users', 'customers'] as $t) {
+        assertTrue(DB::getSchemaBuilder()->hasTable($t), "表 {$t} 不存在");
+    }
+    return '✓ 表 / build / 套件 OK';
+};
+
+$modules['使用者認證與 2FA'] = function () {
+    assertTrue(class_exists(Laravel\Fortify\FortifyServiceProvider::class), 'Fortify 未安裝');
+    foreach (['login', 'logout', 'two-factor-challenge'] as $r)
+        assertTrue(routeExists($r), "路由 {$r} 缺");
+    return '✓ Fortify + 路由 OK';
+};
+
+// ... 加入其他模組測試
+
+// ──────── 執行並輸出統一格式 ────────
+$tests = [];
+foreach ($modules as $name => $test) {
+    try {
+        $detail = $test();
+        $status = 'PASS';
+    } catch (\Throwable $e) {
+        $detail = $e->getMessage();
+        $status = 'FAIL';
+    }
+    $tests[$name] = [
+        'status'       => $status,
+        'detail'       => $detail,
+        'module_key'   => $module_keys[$name]['module_key']   ?? null,
+        'subtask_keys' => $module_keys[$name]['subtask_keys'] ?? [],
+    ];
+}
+
+$output = [
+    'tests'    => $tests,
+    'summary'  => [
+        'total'  => count($tests),
+        'passed' => count(array_filter($tests, fn($t) => $t['status'] === 'PASS')),
+        'failed' => count(array_filter($tests, fn($t) => $t['status'] === 'FAIL')),
+    ],
+];
+
+file_put_contents('/tmp/module_test_results.json',
+    json_encode($output, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+echo "PASS={$output['summary']['passed']} / 共 {$output['summary']['total']}".PHP_EOL;
+echo str_repeat('─', 70).PHP_EOL;
+foreach ($tests as $name => $r) {
+    $icon = $r['status'] === 'PASS' ? '✓' : '✗';
+    $key = $r['module_key'] ?? '—';
+    echo sprintf('%s %-12s %-24s | %s', $icon, $key, $name, $r['detail']).PHP_EOL;
+}

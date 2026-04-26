@@ -1,0 +1,93 @@
+/**
+ * 模組級整合測試樣板（Node.js / TypeScript / Next.js）
+ *
+ * 使用方式：
+ * 1. 複製到 /tmp/module_tests.ts 並改寫測試內容
+ * 2. 在頂端 MODULE_KEYS 填入「模組名稱 → Jira key」對應
+ * 3. 執行：npx tsx /tmp/module_tests.ts （或 ts-node）
+ * 4. 結果寫入 /tmp/module_test_results.json，可餵 state_transition.py
+ */
+import { existsSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+
+// ──────── 模組 → Jira key 對應 ────────
+const MODULE_KEYS: Record<string, { module_key: string; subtask_keys: string[] }> = {
+  '基礎建設': {
+    module_key: 'PROJECT-3663',
+    subtask_keys: ['PROJECT-3673', 'PROJECT-3674'],
+  },
+  '使用者認證': {
+    module_key: 'PROJECT-3664',
+    subtask_keys: ['PROJECT-3682', 'PROJECT-3683'],
+  },
+};
+
+// ──────── 小工具 ────────
+const assertTrue = (cond: any, msg: string): void => {
+  if (!cond) throw new Error(msg);
+};
+
+const fileOk = (p: string): boolean =>
+  existsSync(path.join(process.cwd(), p));
+
+// ──────── 模組測試 ────────
+type TestFn = () => string | Promise<string>;
+const modules: Record<string, TestFn> = {};
+
+modules['基礎建設'] = async () => {
+  assertTrue(fileOk('package.json'), 'package.json 缺');
+  assertTrue(fileOk('tsconfig.json'), 'tsconfig.json 缺');
+  // Next.js: 驗證 build 產出
+  // assertTrue(fileOk('.next/BUILD_ID'), '專案未 build');
+  return '✓ 專案結構 OK';
+};
+
+modules['使用者認證'] = async () => {
+  // 範例：驗證 NextAuth route 存在
+  // assertTrue(fileOk('app/api/auth/[...nextauth]/route.ts'), 'NextAuth handler 缺');
+  return '✓ 認證系統 OK';
+};
+
+// ──────── 執行 ────────
+type Result = { status: 'PASS' | 'FAIL'; detail: string; module_key: string | null; subtask_keys: string[] };
+
+(async () => {
+  const tests: Record<string, Result> = {};
+
+  for (const [name, fn] of Object.entries(modules)) {
+    try {
+      const detail = await fn();
+      tests[name] = {
+        status: 'PASS',
+        detail,
+        module_key: MODULE_KEYS[name]?.module_key ?? null,
+        subtask_keys: MODULE_KEYS[name]?.subtask_keys ?? [],
+      };
+    } catch (e: any) {
+      tests[name] = {
+        status: 'FAIL',
+        detail: e.message,
+        module_key: MODULE_KEYS[name]?.module_key ?? null,
+        subtask_keys: MODULE_KEYS[name]?.subtask_keys ?? [],
+      };
+    }
+  }
+
+  const passed = Object.values(tests).filter((t) => t.status === 'PASS').length;
+  const failed = Object.values(tests).filter((t) => t.status === 'FAIL').length;
+
+  const output = {
+    tests,
+    summary: { total: Object.keys(tests).length, passed, failed },
+  };
+
+  writeFileSync('/tmp/module_test_results.json', JSON.stringify(output, null, 2));
+
+  console.log(`PASS=${passed} / 共 ${Object.keys(tests).length}`);
+  console.log('─'.repeat(70));
+  for (const [name, r] of Object.entries(tests)) {
+    const icon = r.status === 'PASS' ? '✓' : '✗';
+    const key = r.module_key ?? '—';
+    console.log(`${icon} ${key.padEnd(14)} ${name.padEnd(24)} | ${r.detail}`);
+  }
+})();

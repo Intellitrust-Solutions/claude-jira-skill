@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""
+模組級整合測試樣板（Python / Django / FastAPI）
+
+使用方式：
+1. 複製到 /tmp/module_tests.py 並改寫測試內容
+2. 在頂端 MODULE_KEYS 字典填入「模組名稱 → Jira key + subtask keys」
+3. 執行：python3 /tmp/module_tests.py
+4. 結果寫入 /tmp/module_test_results.json，可餵給 state_transition.py
+"""
+import json
+import sys
+import importlib
+from pathlib import Path
+
+# Django 專案：取消下方註解並指定 settings 模組
+# os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myproject.settings')
+# import django
+# django.setup()
+
+
+# ──────── 模組 → Jira key 對應 ────────
+MODULE_KEYS = {
+    '基礎建設': {
+        'module_key': 'PROJECT-3663',
+        'subtask_keys': ['PROJECT-3673', 'PROJECT-3674'],
+    },
+    '使用者認證': {
+        'module_key': 'PROJECT-3664',
+        'subtask_keys': ['PROJECT-3682', 'PROJECT-3683'],
+    },
+    # ...
+}
+
+
+# ──────── 小工具 ────────
+def assert_true(cond, msg):
+    if not cond:
+        raise AssertionError(msg)
+
+
+def file_ok(path):
+    return Path(path).exists()
+
+
+def import_ok(module_path: str) -> bool:
+    try:
+        importlib.import_module(module_path)
+        return True
+    except ImportError:
+        return False
+
+
+# ──────── 模組測試 ────────
+modules = {}
+
+
+def test_foundation():
+    assert_true(file_ok('manage.py') or file_ok('pyproject.toml'), '專案根缺')
+    # Django: 驗證 migration 已跑
+    # from django.db import connection
+    # with connection.cursor() as cur:
+    #     cur.execute("SELECT name FROM django_migrations")
+    #     names = [r[0] for r in cur.fetchall()]
+    #     assert_true(len(names) > 0, '沒有任何 migration 紀錄')
+    return '✓ 專案結構 OK'
+
+
+def test_auth():
+    # 範例：驗證 Django app 註冊
+    # from django.apps import apps
+    # assert_true(apps.is_installed('django.contrib.auth'), 'auth app 未啟用')
+    return '✓ 認證系統 OK'
+
+
+modules['基礎建設'] = test_foundation
+modules['使用者認證'] = test_auth
+
+
+# ──────── 執行 ────────
+def main():
+    tests = {}
+    for name, fn in modules.items():
+        try:
+            detail = fn()
+            status = 'PASS'
+        except Exception as e:
+            detail = str(e)
+            status = 'FAIL'
+        tests[name] = {
+            'status': status,
+            'detail': detail,
+            'module_key': MODULE_KEYS.get(name, {}).get('module_key'),
+            'subtask_keys': MODULE_KEYS.get(name, {}).get('subtask_keys', []),
+        }
+
+    output = {
+        'tests': tests,
+        'summary': {
+            'total': len(tests),
+            'passed': sum(1 for t in tests.values() if t['status'] == 'PASS'),
+            'failed': sum(1 for t in tests.values() if t['status'] == 'FAIL'),
+        },
+    }
+    Path('/tmp/module_test_results.json').write_text(
+        json.dumps(output, ensure_ascii=False, indent=2))
+
+    print(f"PASS={output['summary']['passed']} / 共 {output['summary']['total']}")
+    print('─' * 70)
+    for name, r in tests.items():
+        icon = '✓' if r['status'] == 'PASS' else '✗'
+        key = r['module_key'] or '—'
+        print(f"{icon} {key:14} {name:24} | {r['detail']}")
+
+
+if __name__ == '__main__':
+    main()

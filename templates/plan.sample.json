@@ -1,0 +1,38 @@
+{
+  "_comment": "structure_builder.py 的輸入範例。每個 middle 對應一個模組，內含 subtasks。",
+  "epic_key": "PROJECT-491",
+  "_optional": {
+    "middle_type_id": "10004",
+    "subtask_type_id": "10002",
+    "assignee_account_id": "若不填預設使用 currentUser"
+  },
+  "middles": [
+    {
+      "summary": "基礎建設與安全防護",
+      "due": "2026-04-23",
+      "subtasks": [
+        {"summary": "Laravel + Inertia + Vite 專案腳手架", "hours": 3},
+        {"summary": "資料庫核心 migration（users / customers / skin_analyses / appointments）", "hours": 2},
+        {"summary": "資料庫擴充 migration（booking / feedback / logs / treatments）", "hours": 2},
+        {"summary": "資料庫庫存 migration（products / course_bom / inventory_transactions）", "hours": 3},
+        {"summary": "前端技術棧整合（Vue + TS + Tailwind + reka-ui）", "hours": 3},
+        {"summary": "視覺主題 CSS（粉玫瑰 × 香檳金）", "hours": 3},
+        {"summary": "SanitizeInput middleware（SQL / XSS 過濾）", "hours": 2},
+        {"summary": "SecurityHeaders middleware（CSP / HSTS / X-Frame）", "hours": 2},
+        {"summary": "敏感欄位加密 Cast", "hours": 2}
+      ]
+    },
+    {
+      "summary": "使用者認證與 2FA",
+      "due": "2026-04-24",
+      "subtasks": [
+        {"summary": "Fortify 整合 + 登入 / 註冊", "hours": 3},
+        {"summary": "2FA TOTP 後端 API", "hours": 3},
+        {"summary": "2FA TOTP 前端設定 UI", "hours": 3},
+        {"summary": "2FA 登入挑戰驗證", "hours": 2},
+        {"summary": "密碼重置與變更", "hours": 3},
+        {"summary": "角色權限 + CheckRole Middleware", "hours": 2}
+      ]
+    }
+  ]
+}
