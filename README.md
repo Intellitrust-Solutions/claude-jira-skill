@@ -72,14 +72,19 @@ JIRA_API_TOKEN（輸入時不顯示）
 
 ### Phase 2：專案 Epic Key（可選，寫入專案 CLAUDE.md）
 
-selftest OK 後會問是否要為某個專案設 Epic Key：
+selftest OK 後會依序問三個 prompt：
 
-- 輸入專案目錄（預設你跑 curl|bash 時的 `$PWD`）
-- 輸入 Epic Key（例如 `PROJECT-491`）
-- 自動跑 `check-mine` 驗證屬主
-- 通過後將 `本專案 Jira Epic: PROJECT-491` 寫入該專案 `CLAUDE.md`
+| # | 問什麼 | 預期輸入 |
+|---|---|---|
+| 1 | `現在要設嗎？[y/N]` | `y` 才繼續，否則跳過整個 Phase 2 |
+| 2 | `用這個當作專案根目錄嗎？[Y/n]` | Enter / `Y` 用預設（你跑 curl\|bash 時的目錄）；`n` 改手動輸入路徑 |
+| 3 | `Epic Key:` | Jira 票編號，例如 `PROJECT-491`（**不是路徑、不是 y/n**） |
 
-> Phase 2 跳過也沒關係，可之後手動寫 CLAUDE.md，或在對話中對 Claude 說。
+通過後自動跑 `check-mine` 驗證 Epic 屬主，OK 才把 `本專案 Jira Epic: PROJECT-491` 寫進該專案的 `CLAUDE.md`。
+
+> **prompt 慣例**：`[Y/n]` 大寫的字母是預設（Enter 採用），`[y/N]` 預設為 N。
+>
+> Phase 2 跳過也沒關係，可之後手動寫 CLAUDE.md 或在對話中對 Claude 說。
 
 ### Phase 3：在 Claude Code 中觸發
 
