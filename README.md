@@ -58,12 +58,13 @@ REPO_URL=https://github.com/your-org/your-fork.git \
 
 ### Phase 1：個人憑證（自動寫入全域 .env）
 
-安裝時會問三個值，自動寫到 `~/.claude/skills/jira/.env`（chmod 600）：
+安裝時會問四個值，自動寫到 `~/.claude/skills/jira/.env`（chmod 600）：
 
 ```
 JIRA_BASE_URL（必須 https://，輸入錯會重問）
 JIRA_EMAIL
 JIRA_API_TOKEN（輸入時不顯示）
+工作日（給 due date 推算用，1=週一到週五 預設 / 2=週二到週六 / 3=自訂）
 ```
 
 寫完自動跑 `selftest` 驗證憑證可用。

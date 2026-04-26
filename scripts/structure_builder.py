@@ -23,11 +23,17 @@ plan.json 格式：
 工時 → due 推算規則：
 - 每天有效工時 8h（依 references/granularity-rules.md）
 - 模組總工時 = sum(subtask hours)；ceil(總工時 / 8) = 工作天數
-- 跳過週末，前一個 module 的 due 為下一個 module 的起算日 + 1 工作日
+- 跳過非工作日（預設週末，可用 JIRA_WORKING_DAYS env var 自訂）
+- 前一個 module 的 due 為下一個 module 的起算日 + 1 工作日
+
+工作日設定（JIRA_WORKING_DAYS）：
+- 逗號分隔的星期數（0=週一, 1=週二, ..., 5=週六, 6=週日）
+- 預設 "0,1,2,3,4"（週一到週五）
+- 範例：Tue-Sat 設 "1,2,3,4,5"
 
 結果寫入 ~/.cache/jira-skill/build_result.json（chmod 0600）
 """
-import json, sys, time, argparse, math
+import os, json, sys, time, argparse, math
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -39,39 +45,63 @@ from jira_client import JiraClient, output_path
 
 
 HOURS_PER_DAY = 8.0
+DEFAULT_WORKING_DAYS = {0, 1, 2, 3, 4}  # 週一到週五
 
 
-def next_workday(d: date) -> date:
-    """回傳下一個工作日（跳過週六日）。"""
+def get_working_days() -> set[int]:
+    """從 JIRA_WORKING_DAYS env 讀工作日；格式 '0,1,2,3,4'（0=週一...6=週日）。"""
+    raw = os.environ.get('JIRA_WORKING_DAYS', '').strip()
+    if not raw:
+        return DEFAULT_WORKING_DAYS
+    try:
+        days = {int(d.strip()) for d in raw.split(',') if d.strip()}
+        if not days or any(d < 0 or d > 6 for d in days):
+            raise ValueError(f'JIRA_WORKING_DAYS 含無效值: {raw}')
+        return days
+    except ValueError as e:
+        print(f'⚠ JIRA_WORKING_DAYS 解析失敗（{e}），fallback 用預設週一到週五')
+        return DEFAULT_WORKING_DAYS
+
+
+def is_workday(d: date, working_days: set[int] | None = None) -> bool:
+    return d.weekday() in (working_days or get_working_days())
+
+
+def next_workday(d: date, working_days: set[int] | None = None) -> date:
+    """回傳下一個工作日（跳過非工作日）。"""
+    wd = working_days or get_working_days()
     nxt = d + timedelta(days=1)
-    while nxt.weekday() >= 5:
+    while nxt.weekday() not in wd:
         nxt += timedelta(days=1)
     return nxt
 
 
-def add_workdays(start: date, days: int) -> date:
-    """從 start 起算第 N 個工作日（含 start 當天若為平日）。N=1 代表 start 當天。"""
+def add_workdays(start: date, days: int, working_days: set[int] | None = None) -> date:
+    """從 start 起算第 N 個工作日（含 start 當天若為工作日）。N=1 代表 start 當天。"""
+    wd = working_days or get_working_days()
     if days <= 0:
         return start
     current = start
-    # 若 start 是週末，先推到下個平日再從那天算第 1 天
-    while current.weekday() >= 5:
+    # 若 start 不是工作日，先推到下個工作日再從那天算第 1 天
+    while current.weekday() not in wd:
         current += timedelta(days=1)
     counted = 1
     while counted < days:
-        current = next_workday(current)
+        current = next_workday(current, wd)
         counted += 1
     return current
 
 
-def compute_module_due(start: date, hours: float) -> tuple[date, date]:
+def compute_module_due(start: date, hours: float,
+                        working_days: set[int] | None = None) -> tuple[date, date]:
     """
     根據工時推算模組 due date。
     回傳 (該模組 due, 下個模組起算日)
     """
+    wd = working_days or get_working_days()
     days = max(1, math.ceil(hours / HOURS_PER_DAY))
-    due = add_workdays(start, days)
-    next_start = next_workday(due)
+    due = add_workdays(start, days, wd)
+    next_start = next_workday(due, wd)
     return due, next_start
 
 
@@ -119,6 +149,11 @@ def build(plan_path: str, dry_run: bool = False, delay: float = 0.06,
     if account != me:
         print(f'⚠ assignee = {account}（非當前使用者，--include-others 已啟用）')
 
+    # 工作日設定（先讓 from_env 把 .env 注入 os.environ）
+    wd_set = get_working_days()
+    weekday_names = ['週一','週二','週三','週四','週五','週六','週日']
+    print(f'⚙ 工作日: {", ".join(weekday_names[i] for i in sorted(wd_set))}')
+
     # 起算日：CLI > plan 內 start_date > 今天
     if start_date:
         cur_start = datetime.strptime(start_date, '%Y-%m-%d').date()
@@ -126,8 +161,8 @@ def build(plan_path: str, dry_run: bool = False, delay: float = 0.06,
         cur_start = datetime.strptime(plan['start_date'], '%Y-%m-%d').date()
     else:
         cur_start = date.today()
-    # 若起算日是週末，推到下個平日
-    while cur_start.weekday() >= 5:
+    # 若起算日不是工作日，推到下個工作日
+    while cur_start.weekday() not in wd_set:
         cur_start += timedelta(days=1)
 
     result = {'epic': epic_key, 'middles': [], 'subtasks': [], 'failed': []}
@@ -137,12 +172,12 @@ def build(plan_path: str, dry_run: bool = False, delay: float = 0.06,
         if m.get('due'):
             module_due = m['due']
             # plan 指定 due 後，下個 module 起算日推到 due+1 工作日
-            cur_start = next_workday(datetime.strptime(module_due, '%Y-%m-%d').date())
+            cur_start = next_workday(datetime.strptime(module_due, '%Y-%m-%d').date(), wd_set)
         else:
             total_hours = sum(s.get('hours', 0) for s in m.get('subtasks', []))
             if total_hours <= 0:
                 total_hours = HOURS_PER_DAY  # 至少一天
-            due_date_obj, cur_start = compute_module_due(cur_start, total_hours)
+            due_date_obj, cur_start = compute_module_due(cur_start, total_hours, wd_set)
             module_due = due_date_obj.isoformat()
 
         if dry_run:

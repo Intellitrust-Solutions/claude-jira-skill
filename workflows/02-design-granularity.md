@@ -77,6 +77,19 @@ python3 ~/.claude/skills/jira/scripts/structure_builder.py --plan plan.json --st
 2. 沒給 → 依該 module 的 subtask 工時加總自動推算
 3. 起算日：`--start-date` > plan.json 內 `start_date` > 今天
 
+## 工作日設定
+
+預設週一到週五。要改成「週二到週六」或其他組合，在 `~/.claude/skills/jira/.env` 加：
+
+```
+# 0=週一, 1=週二, 2=週三, 3=週四, 4=週五, 5=週六, 6=週日
+JIRA_WORKING_DAYS=1,2,3,4,5    # 週二到週六
+JIRA_WORKING_DAYS=0,1,2,3,4    # 週一到週五（預設）
+JIRA_WORKING_DAYS=0,1,2,3,4,5  # 週一到週六（含小週末）
+```
+
+`structure_builder.py` 跑起來會印一行 `⚙ 工作日: ...` 確認當前設定。
+
 ## 範例：SleepingBeauty 案例（實作參考）
 
 > 此為**實作案例**，數字僅供顆粒度感覺。你的專案模組數與工時必定不同 —— 由 Claude 依當前 codebase 估。

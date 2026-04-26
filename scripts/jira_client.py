@@ -68,7 +68,7 @@ class JiraClient:
         # 優先序：參數指定 .env > JIRA_ENV_FILE > 當前目錄 .env > 全域 ~/.claude/skills/jira/.env > 環境變數
         # JIRA_EPIC_KEY 也會一併讀入 os.environ，供 resolve_epic_key() 使用
         vars_needed = ['JIRA_BASE_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN']
-        optional_vars = ['JIRA_EPIC_KEY']
+        optional_vars = ['JIRA_EPIC_KEY', 'JIRA_WORKING_DAYS']
         all_vars = vars_needed + optional_vars
         values = {k: os.environ.get(k) for k in all_vars}
 
@@ -85,9 +85,10 @@ class JiraClient:
                 # 讀完一個檔就停（依優先序）
                 break
 
-        # JIRA_EPIC_KEY 注入 os.environ，讓 resolve_epic_key() 取得
-        if values.get('JIRA_EPIC_KEY') and not os.environ.get('JIRA_EPIC_KEY'):
-            os.environ['JIRA_EPIC_KEY'] = values['JIRA_EPIC_KEY']
+        # JIRA_EPIC_KEY / JIRA_WORKING_DAYS 注入 os.environ，讓其他模組讀得到
+        for k in optional_vars:
+            if values.get(k) and not os.environ.get(k):
+                os.environ[k] = values[k]
 
         missing = [k for k in vars_needed if not values.get(k)]
         if missing:
