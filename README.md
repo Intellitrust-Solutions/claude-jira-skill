@@ -54,55 +54,48 @@ REPO_URL=https://github.com/your-org/your-fork.git \
 
 ## 第一次使用流程
 
-依序跑完下面 5 步，每步都是前一步的 sanity check。
+`install.sh` 為互動式 —— curl|bash 也能讀使用者輸入（透過 `/dev/tty`）。流程兩 phase：
 
-### 1. 編輯憑證
+### Phase 1：個人憑證（自動寫入全域 .env）
 
-```bash
-nano ~/.claude/skills/jira/.env
-```
-
-填入：
+安裝時會問三個值，自動寫到 `~/.claude/skills/jira/.env`（chmod 600）：
 
 ```
-JIRA_BASE_URL=https://your-workspace.atlassian.net    # 必須 https://，否則會 raise
-JIRA_EMAIL=you@example.com
-JIRA_API_TOKEN=...
+JIRA_BASE_URL（必須 https://，輸入錯會重問）
+JIRA_EMAIL
+JIRA_API_TOKEN（輸入時不顯示）
 ```
 
-> 為什麼強制 `https://`：Basic Auth token 走 plaintext，`http://` 會被 jira_client.py 拒絕。
+寫完自動跑 `selftest` 驗證憑證可用。
 
-### 2. 自檢憑證
+> 為什麼強制 `https://`：Basic Auth token 走 plaintext，`http://` 會被 `jira_client.py` 拒絕。
 
-```bash
-python3 ~/.claude/skills/jira/scripts/jira_client.py selftest
-```
+### Phase 2：專案 Epic Key（可選，寫入專案 CLAUDE.md）
 
-預期看到 `"status": "OK"`。401 → token 失效或 email 對不上。
+selftest OK 後會問是否要為某個專案設 Epic Key：
 
-### 3. 在測試專案的 CLAUDE.md 寫 Epic Key
+- 輸入專案目錄（預設你跑 curl|bash 時的 `$PWD`）
+- 輸入 Epic Key（例如 `PROJECT-491`）
+- 自動跑 `check-mine` 驗證屬主
+- 通過後將 `本專案 Jira Epic: PROJECT-491` 寫入該專案 `CLAUDE.md`
 
-到你想測試的專案根目錄，編輯 `CLAUDE.md`：
+> Phase 2 跳過也沒關係，可之後手動寫 CLAUDE.md，或在對話中對 Claude 說。
 
-```markdown
-本專案 Jira Epic: PROJECT-XXX
-```
-
-### 4. 驗證 Epic 屬主
-
-```bash
-python3 ~/.claude/skills/jira/scripts/jira_client.py check-mine PROJECT-XXX
-```
-
-`✓ 屬於你` → 繼續。`✗ 拒絕` → 到 Jira 把 Epic assignee 改成自己，或換一個是你的 Epic。
-
-### 5. 在 Claude Code 中觸發
+### Phase 3：在 Claude Code 中觸發
 
 進入測試專案，啟動 Claude Code：
 
 > 「幫我分析這個專案的 codebase，在 PROJECT-XXX 底下建 module 和 subtask」
 
 Claude 會先給你計畫，**等你確認**才動手建立。
+
+### 非互動模式（CI / 已有 .env）
+
+```bash
+NONINTERACTIVE=1 curl -sL https://raw.githubusercontent.com/Intellitrust-Solutions/claude-jira-skill/main/install.sh | bash
+```
+
+跳過所有 prompt，僅 clone + 從 `.env.example` 建空 `.env`。
 
 ---
 
