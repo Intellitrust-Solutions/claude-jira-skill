@@ -13,18 +13,24 @@ Claude Code 的 Jira skill — 自動分析專案 codebase，在 Jira 建立 Epi
 
 ## 安裝
 
+**一鍵安裝**（推薦，會自動 clone 到 `~/.claude/skills/jira`）：
+
 ```bash
-git clone https://github.com/<your-account>/claude-jira-skill.git ~/.claude/skills/jira
+curl -sL https://raw.githubusercontent.com/Intellitrust-Solutions/claude-jira-skill/main/install.sh | bash
+```
+
+**手動安裝**：
+
+```bash
+git clone https://github.com/Intellitrust-Solutions/claude-jira-skill.git ~/.claude/skills/jira
 cd ~/.claude/skills/jira
 ./install.sh
 ```
 
-或手動：
+裝完後編輯 `~/.claude/skills/jira/.env` 填入憑證，再跑：
 
 ```bash
-cp .env.example .env
-# 編輯 .env 填入 JIRA_BASE_URL / JIRA_EMAIL / JIRA_API_TOKEN
-python3 scripts/jira_client.py selftest
+python3 ~/.claude/skills/jira/scripts/jira_client.py selftest
 ```
 
 ## 前置條件
