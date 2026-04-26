@@ -32,6 +32,30 @@ python3 scripts/jira_client.py selftest
 - Python 3.7+（用內建 `urllib` + `json`，無需 pip 套件）
 - Jira Cloud 帳號 + [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
 
+## 兩層設定（重要）
+
+設定刻意拆成兩層 —— 個人憑證跨專案共用，但 Epic Key 因專案而異：
+
+### 全域層：`~/.claude/skills/jira/.env`
+個人憑證，裝完一次就不用再動：
+```
+JIRA_BASE_URL=https://your-workspace.atlassian.net
+JIRA_EMAIL=you@example.com
+JIRA_API_TOKEN=...
+```
+
+### 專案層：每個用 skill 的專案各自設定 Epic Key
+
+三種放法擇一（依優先序）：
+
+| 放法 | 範例 | 適用情境 |
+|---|---|---|
+| **專案 `CLAUDE.md`**（推薦） | `本專案 Epic: PROJECT-491` | Claude 自動讀進 context，不用每次講 |
+| 對話時直接講 | 「在 PROJECT-491 底下建模組」 | 最彈性 |
+| 專案 `.env` | `JIRA_EPIC_KEY=PROJECT-491` | CI / 直接跑 CLI |
+
+**為什麼不放全域**：Epic Key 跟著專案走，不該跟個人憑證綁在一起。例如同一個 Jira 帳號可能要管 5 個專案的 Epic，全域只塞一個就會誤改。
+
 ## 使用
 
 在 Claude Code 中觸發：
