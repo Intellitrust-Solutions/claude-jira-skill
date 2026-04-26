@@ -45,14 +45,37 @@
 
 ## 數字速查表
 
-| 模組預估工時 | Subtask 數 |
-|------------|-----------|
-| ≤ 3h | 1 |
-| 4–6h | 2 |
-| 7–10h | 3 |
-| 11–15h | 4–5 |
-| 16–22h | 6–8 |
-| > 22h | 考慮拆成兩個模組 |
+| 模組預估工時 | Subtask 數 | 工作天 | 從起算日 +N 個工作日 |
+|------------|-----------|-------|------------------|
+| ≤ 3h | 1 | 1 | +0（當天） |
+| 4–6h | 2 | 1 | +0 |
+| 7–10h | 3 | 2 | +1 |
+| 11–15h | 4–5 | 2 | +1 |
+| 16–22h | 6–8 | 3 | +2 |
+| > 22h | 考慮拆成兩個模組 | — | — |
+
+> 工作天 = ceil(工時 / 8h)；自動跳過週末。
+>
+> Subtask 共用所屬 module 的 due（不每個 subtask 一個日期）。
+>
+> 模組依排序序列推進：模組 N+1 起算日 = 模組 N due + 1 工作日。
+
+## Due date 推算（自動）
+
+`structure_builder.py` 會自動推算 due date，**不需手填**：
+
+```bash
+# 從今天起算
+python3 ~/.claude/skills/jira/scripts/structure_builder.py --plan plan.json
+
+# 從指定日期起算（例如下週一開工）
+python3 ~/.claude/skills/jira/scripts/structure_builder.py --plan plan.json --start-date 2026-05-04
+```
+
+優先序：
+1. plan.json 中該 module 有 `"due": "YYYY-MM-DD"` → 用它
+2. 沒給 → 依該 module 的 subtask 工時加總自動推算
+3. 起算日：`--start-date` > plan.json 內 `start_date` > 今天
 
 ## 範例：SleepingBeauty 案例（實作參考）
 

@@ -158,13 +158,22 @@ python3 ~/.claude/skills/jira/scripts/delete_subtree.py PROJECT-XXX
 ## CLI 速查
 
 ```bash
+# 自檢 / 列工作流
 python3 ~/.claude/skills/jira/scripts/jira_client.py whoami
 python3 ~/.claude/skills/jira/scripts/jira_client.py issuetypes
 python3 ~/.claude/skills/jira/scripts/jira_client.py transitions PROJECT-XXX
 python3 ~/.claude/skills/jira/scripts/jira_client.py check-mine PROJECT-XXX
+
+# 查樹狀
 python3 ~/.claude/skills/jira/scripts/query_tree.py PROJECT-XXX
 python3 ~/.claude/skills/jira/scripts/query_tree.py PROJECT-XXX --stats
+
+# 建結構（due 自動推算，跳週末）
+python3 ~/.claude/skills/jira/scripts/structure_builder.py --plan plan.json --dry-run
+python3 ~/.claude/skills/jira/scripts/structure_builder.py --plan plan.json --start-date 2026-05-04
 ```
+
+`--start-date` 沒給時用今天起算；plan.json 內某 module 已寫 `"due"` 則優先用它，後續 module 從該 due+1 工作日繼續排。詳見 [workflows/02-design-granularity.md](workflows/02-design-granularity.md)。
 
 ---
 

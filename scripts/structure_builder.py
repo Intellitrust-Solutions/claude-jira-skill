@@ -11,7 +11,7 @@ plan.json 格式：
     "middles": [
         {
             "summary": "基礎建設與安全防護",
-            "due": "2026-04-23",
+            "due": "2026-04-23",          // 可選，未給則依 --start-date + subtask 工時自動推算
             "subtasks": [
                 {"summary": "Laravel + Inertia + Vite 腳手架", "hours": 3},
                 {"summary": "資料庫核心 migration", "hours": 2}
@@ -20,9 +20,15 @@ plan.json 格式：
     ]
 }
 
+工時 → due 推算規則：
+- 每天有效工時 8h（依 references/granularity-rules.md）
+- 模組總工時 = sum(subtask hours)；ceil(總工時 / 8) = 工作天數
+- 跳過週末，前一個 module 的 due 為下一個 module 的起算日 + 1 工作日
+
 結果寫入 ~/.cache/jira-skill/build_result.json（chmod 0600）
 """
-import json, sys, time, argparse
+import json, sys, time, argparse, math
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import sys as _sys
@@ -30,6 +36,43 @@ if hasattr(_sys.stdout, "reconfigure"): _sys.stdout.reconfigure(encoding="utf-8"
 
 sys.path.insert(0, str(Path(__file__).parent))
 from jira_client import JiraClient, output_path
+
+
+HOURS_PER_DAY = 8.0
+
+
+def next_workday(d: date) -> date:
+    """回傳下一個工作日（跳過週六日）。"""
+    nxt = d + timedelta(days=1)
+    while nxt.weekday() >= 5:
+        nxt += timedelta(days=1)
+    return nxt
+
+
+def add_workdays(start: date, days: int) -> date:
+    """從 start 起算第 N 個工作日（含 start 當天若為平日）。N=1 代表 start 當天。"""
+    if days <= 0:
+        return start
+    current = start
+    # 若 start 是週末，先推到下個平日再從那天算第 1 天
+    while current.weekday() >= 5:
+        current += timedelta(days=1)
+    counted = 1
+    while counted < days:
+        current = next_workday(current)
+        counted += 1
+    return current
+
+
+def compute_module_due(start: date, hours: float) -> tuple[date, date]:
+    """
+    根據工時推算模組 due date。
+    回傳 (該模組 due, 下個模組起算日)
+    """
+    days = max(1, math.ceil(hours / HOURS_PER_DAY))
+    due = add_workdays(start, days)
+    next_start = next_workday(due)
+    return due, next_start
 
 
 def auto_resolve_types(jc: JiraClient) -> tuple[str, str]:
@@ -47,7 +90,7 @@ def auto_resolve_types(jc: JiraClient) -> tuple[str, str]:
 
 
 def build(plan_path: str, dry_run: bool = False, delay: float = 0.06,
-          include_others: bool = False) -> dict:
+          include_others: bool = False, start_date: str | None = None) -> dict:
     plan = json.loads(Path(plan_path).read_text(encoding='utf-8'))
     jc = JiraClient.from_env()
 
@@ -76,11 +119,35 @@ def build(plan_path: str, dry_run: bool = False, delay: float = 0.06,
     if account != me:
         print(f'⚠ assignee = {account}（非當前使用者，--include-others 已啟用）')
 
+    # 起算日：CLI > plan 內 start_date > 今天
+    if start_date:
+        cur_start = datetime.strptime(start_date, '%Y-%m-%d').date()
+    elif plan.get('start_date'):
+        cur_start = datetime.strptime(plan['start_date'], '%Y-%m-%d').date()
+    else:
+        cur_start = date.today()
+    # 若起算日是週末，推到下個平日
+    while cur_start.weekday() >= 5:
+        cur_start += timedelta(days=1)
+
     result = {'epic': epic_key, 'middles': [], 'subtasks': [], 'failed': []}
 
     for m in plan['middles']:
+        # due 來源：m['due'] > 依 subtask hours 自動推算
+        if m.get('due'):
+            module_due = m['due']
+            # plan 指定 due 後，下個 module 起算日推到 due+1 工作日
+            cur_start = next_workday(datetime.strptime(module_due, '%Y-%m-%d').date())
+        else:
+            total_hours = sum(s.get('hours', 0) for s in m.get('subtasks', []))
+            if total_hours <= 0:
+                total_hours = HOURS_PER_DAY  # 至少一天
+            due_date_obj, cur_start = compute_module_due(cur_start, total_hours)
+            module_due = due_date_obj.isoformat()
+
         if dry_run:
-            print(f'[dry-run] 會建立 middle: {m["summary"]} (due {m["due"]})')
+            total_h = sum(s.get('hours', 0) for s in m.get('subtasks', []))
+            print(f'[dry-run] 會建立 middle: {m["summary"]} (due {module_due}, ~{total_h}h)')
             for s in m.get('subtasks', []):
                 print(f'    └── {s["summary"]}')
             continue
@@ -90,7 +157,7 @@ def build(plan_path: str, dry_run: bool = False, delay: float = 0.06,
                 'project': {'key': project_key},
                 'issuetype': {'id': middle_type},
                 'summary': m['summary'],
-                'duedate': m['due'],
+                'duedate': module_due,
                 'assignee': {'accountId': account},
                 'parent': {'key': epic_key},
             }
@@ -100,7 +167,7 @@ def build(plan_path: str, dry_run: bool = False, delay: float = 0.06,
             result['failed'].append({'middle': m['summary'], 'code': code, 'body': body})
             continue
         mid_key = body['key']
-        result['middles'].append({'key': mid_key, 'summary': m['summary'], 'due': m['due']})
+        result['middles'].append({'key': mid_key, 'summary': m['summary'], 'due': module_due})
         time.sleep(delay)
 
         for s in m.get('subtasks', []):
@@ -109,7 +176,7 @@ def build(plan_path: str, dry_run: bool = False, delay: float = 0.06,
                     'project': {'key': project_key},
                     'issuetype': {'id': subtask_type},
                     'summary': s['summary'],
-                    'duedate': m['due'],
+                    'duedate': module_due,
                     'assignee': {'accountId': account},
                     'parent': {'key': mid_key},
                 }
@@ -134,10 +201,12 @@ def _cli():
     ap.add_argument('--plan', required=True, help='plan.json 檔案路徑')
     ap.add_argument('--dry-run', action='store_true')
     ap.add_argument('--delay', type=float, default=0.06)
+    ap.add_argument('--start-date', help='起算日（YYYY-MM-DD），未給則用今天；'
+                                          'plan.json 內如有 module 級 due 仍優先使用')
     ap.add_argument('--include-others', action='store_true',
                     help='⚠ 危險：允許把任務 assign 給非當前使用者（預設只 assign 給自己）')
     args = ap.parse_args()
-    build(args.plan, args.dry_run, args.delay, args.include_others)
+    build(args.plan, args.dry_run, args.delay, args.include_others, args.start_date)
 
 
 if __name__ == '__main__':
