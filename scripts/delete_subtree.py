@@ -36,7 +36,7 @@ def _cli():
     args = ap.parse_args()
 
     jc = JiraClient.from_env()
-    epic = resolve_epic_key(epic)
+    epic = resolve_epic_key(args.epic_key)
     jc.assert_mine(epic, '操作 Epic')  # 連 Epic 本身都要是自己的
 
     jql = f'parent={epic}'

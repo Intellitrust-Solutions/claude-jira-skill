@@ -54,7 +54,7 @@ def _cli():
     args = ap.parse_args()
 
     jc = JiraClient.from_env()
-    epic = resolve_epic_key(epic)
+    epic = resolve_epic_key(args.epic_key)
     tree = fetch_tree(jc, epic)
 
     if args.json:
