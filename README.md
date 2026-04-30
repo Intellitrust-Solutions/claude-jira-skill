@@ -156,6 +156,30 @@ python3 ~/.claude/skills/jira/scripts/delete_subtree.py PROJECT-XXX
 
 ---
 
+## 更新 skill
+
+最簡單：重跑 install.sh，會 `git pull --ff-only` 並保留你的 `.env`。
+
+```bash
+curl -sL https://raw.githubusercontent.com/Intellitrust-Solutions/claude-jira-skill/main/install.sh | bash
+```
+
+或直接 git pull：
+
+```bash
+git -C ~/.claude/skills/jira pull
+```
+
+**被動更新通知**：跑 `selftest` 時會自動檢查（24h 快取一次）。有新版時會在 stderr 印一行提示，**不會自動 pull**。也可手動：
+
+```bash
+python3 ~/.claude/skills/jira/scripts/jira_client.py check-update
+```
+
+關閉自動檢查：在 .env 加 `JIRA_SKILL_NO_UPDATE_CHECK=1`。
+
+---
+
 ## CLI 速查
 
 ```bash

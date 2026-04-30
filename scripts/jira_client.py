@@ -18,7 +18,7 @@ CLI:
     python3 jira_client.py issuetypes
     python3 jira_client.py transitions PROJECT-XXX
 """
-import os, json, base64, sys, urllib.request, urllib.error
+import os, json, base64, sys, time, subprocess, urllib.request, urllib.error
 from pathlib import Path
 
 # 強制 stdout UTF-8，避免中文在某些環境壞掉
@@ -46,6 +46,64 @@ def resolve_epic_key(cli_value: str | None) -> str:
             '缺少 Epic Key：請以 CLI 參數提供，或在專案 .env 設 JIRA_EPIC_KEY=...'
         )
     return val
+
+
+def check_update(force: bool = False, verbose: bool = False) -> tuple[bool, str]:
+    """
+    檢查 skill 是否有新版（被動通知，不自動拉）。
+    - 24h 快取（~/.cache/jira-skill/.update_check），避免每次呼叫都打 GitHub
+    - JIRA_SKILL_NO_UPDATE_CHECK=1 可關閉
+    - 任何錯誤都 silent skip（離線 / 非 git repo / git 沒裝）
+    回傳 (有新版, 訊息)。
+    """
+    if not force and os.environ.get('JIRA_SKILL_NO_UPDATE_CHECK'):
+        return False, ''
+
+    skill_dir = Path(__file__).resolve().parent.parent
+    if not (skill_dir / '.git').exists():
+        return False, ''
+
+    cache_file = Path.home() / '.cache' / 'jira-skill' / '.update_check'
+    now = int(time.time())
+    if not force and cache_file.exists():
+        try:
+            if now - int(cache_file.read_text().strip()) < 86400:
+                return False, ''
+        except Exception:
+            pass
+
+    try:
+        local = subprocess.run(
+            ['git', '-C', str(skill_dir), 'rev-parse', 'HEAD'],
+            capture_output=True, text=True, timeout=5
+        ).stdout.strip()
+        remote_out = subprocess.run(
+            ['git', '-C', str(skill_dir), 'ls-remote', 'origin', 'HEAD'],
+            capture_output=True, text=True, timeout=10
+        ).stdout.strip()
+        if not local or not remote_out:
+            return False, ''
+        remote = remote_out.split()[0]
+
+        # 寫快取（無論結果都更新時間）
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text(str(now))
+        try:
+            cache_file.chmod(0o600)
+        except Exception:
+            pass
+
+        if local != remote:
+            return True, (
+                f'⚠ skill 有新版可更新（local: {local[:7]} → remote: {remote[:7]}）\n'
+                f'  更新指令：curl -sL https://raw.githubusercontent.com/Intellitrust-Solutions/claude-jira-skill/main/install.sh | bash\n'
+                f'  或：git -C {skill_dir} pull'
+            )
+        if verbose:
+            return False, f'✓ skill 已是最新版（{local[:7]}）'
+        return False, ''
+    except Exception:
+        return False, ''
 
 
 class JiraClient:
@@ -165,22 +223,32 @@ class JiraClient:
             )
 
     def selftest(self) -> dict:
-        """連線自檢：驗證憑證 + accountId + Jira 站台可達。"""
+        """連線自檢：驗證憑證 + accountId + Jira 站台可達。順便檢查 skill 是否有新版。"""
         me = self.whoami()
-        return {
+        result = {
             'base_url': self.base,
             'account_id': me['accountId'],
             'display_name': me['name'],
             'status': 'OK',
         }
+        # 被動更新通知（24h cache，silent on error）
+        has_update, msg = check_update()
+        if has_update:
+            print(msg, file=sys.stderr)
+        return result
 
 
 def _cli():
     if len(sys.argv) < 2:
-        print('用法: python3 jira_client.py <whoami|issuetypes|transitions KEY>')
+        print('用法: python3 jira_client.py <whoami|issuetypes|transitions KEY|check-update>')
         sys.exit(1)
-    jc = JiraClient.from_env()
     cmd = sys.argv[1]
+    # check-update 不需要 Jira 連線，先處理
+    if cmd == 'check-update':
+        has, msg = check_update(force=True, verbose=True)
+        print(msg or '✓ 已是最新版')
+        sys.exit(0 if not has else 1)
+    jc = JiraClient.from_env()
     if cmd == 'whoami':
         print(json.dumps(jc.whoami(), ensure_ascii=False, indent=2))
     elif cmd == 'selftest':
