@@ -51,6 +51,8 @@ Script 會自動：
 2. 動態取得可用 transitions
 3. 找出最短路徑
 4. 逐步執行
+5. **Cascade（預設開啟）**：target 含「完成」時，subtask 全完成 → 自動推 module；
+   module 全完成 → 自動推 Epic。加 `--no-cascade` 關閉。
 
 ## 常見場景
 

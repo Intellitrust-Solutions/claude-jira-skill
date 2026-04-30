@@ -65,6 +65,7 @@ Epic（大型工作 / hierarchyLevel=1）
 | **Epic 屬主驗證**：所有 destructive 操作前 `assert_mine(epic_key)` | `delete_subtree.py` / `state_transition.py` / `structure_builder.py` |
 | **預設只動自己的 issue**（assignee 或 reporter）；要動別人需明確加 `--include-others` | `delete_subtree.py` / `state_transition.py` |
 | **批次操作前 mine 過濾**：跳過非本人項並回報數量 | `state_transition.py` |
+| **Cascade 自動推進**：subtask 全完成 → module 完成；module 全完成 → Epic 完成（target 含「完成」才觸發，可 `--no-cascade` 關） | `state_transition.py:cascade_complete()` |
 | **動態查 ID**（issuetype / transition 隨專案異） | 所有 script |
 | **預設 dry-run** for 刪除；要 `--yes` 才真執行 | `delete_subtree.py` |
 | **Test-before-Done**：沒實測不推「完成」 | `workflows/04-test-and-verify.md` |
