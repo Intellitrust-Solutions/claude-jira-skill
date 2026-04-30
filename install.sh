@@ -111,11 +111,13 @@ prompt_credentials() {
     echo "    工作日（給 due date 推算用，0=週一...6=週日）"
     echo "    1) 週一到週五（預設）          → 0,1,2,3,4"
     echo "    2) 週二到週六                  → 1,2,3,4,5"
-    echo "    3) 自訂"
+    echo "    3) 週三到週六                  → 2,3,4,5"
+    echo "    4) 自訂"
     read_tty "選擇 [1]: " WD_CHOICE
     case "${WD_CHOICE:-1}" in
         2) WORKING_DAYS="1,2,3,4,5" ;;
-        3) read_tty "輸入逗號分隔的星期數: " WORKING_DAYS ;;
+        3) WORKING_DAYS="2,3,4,5" ;;
+        4) read_tty "輸入逗號分隔的星期數: " WORKING_DAYS ;;
         *) WORKING_DAYS="0,1,2,3,4" ;;
     esac
 
