@@ -108,18 +108,19 @@ prompt_credentials() {
     read_tty "JIRA_API_TOKEN（輸入時不顯示）: " JIRA_API_TOKEN secret
 
     echo
-    echo "    工作日（給 due date 推算用，0=週一...6=週日）"
-    echo "    1) 週一到週五（預設）          → 0,1,2,3,4"
-    echo "    2) 週二到週六                  → 1,2,3,4,5"
-    echo "    3) 週三到週六                  → 2,3,4,5"
-    echo "    4) 自訂"
+    echo "    工作日（給 due date 推算用）"
+    echo "    1) 週一到週五（預設）          → Mon,Tue,Wed,Thu,Fri"
+    echo "    2) 週二到週六                  → Tue,Wed,Thu,Fri,Sat"
+    echo "    3) 週二到週五                  → Tue,Wed,Thu,Fri"
+    echo "    4) 週三到週六                  → Wed,Thu,Fri,Sat"
     read_tty "選擇 [1]: " WD_CHOICE
     case "${WD_CHOICE:-1}" in
-        2) WORKING_DAYS="1,2,3,4,5" ;;
-        3) WORKING_DAYS="2,3,4,5" ;;
-        4) read_tty "輸入逗號分隔的星期數: " WORKING_DAYS ;;
-        *) WORKING_DAYS="0,1,2,3,4" ;;
+        2) WORKING_DAYS="Tue,Wed,Thu,Fri,Sat" ;;
+        3) WORKING_DAYS="Tue,Wed,Thu,Fri" ;;
+        4) WORKING_DAYS="Wed,Thu,Fri,Sat" ;;
+        *) WORKING_DAYS="Mon,Tue,Wed,Thu,Fri" ;;
     esac
+    echo "    （需其他組合可裝完後手動編輯 ${ENV_FILE} 的 JIRA_WORKING_DAYS）"
 
     cat > "$ENV_FILE" <<EOF
 # 由 install.sh 自動產生

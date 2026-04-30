@@ -48,15 +48,43 @@ HOURS_PER_DAY = 8.0
 DEFAULT_WORKING_DAYS = {0, 1, 2, 3, 4}  # 週一到週五
 
 
+DAY_NAME_TO_INT = {
+    'mon': 0, 'tue': 1, 'wed': 2, 'thu': 3, 'fri': 4, 'sat': 5, 'sun': 6,
+    'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
+    'friday': 4, 'saturday': 5, 'sunday': 6,
+    '一': 0, '二': 1, '三': 2, '四': 3, '五': 4, '六': 5, '日': 6, '天': 6,
+}
+
+
+def _parse_day(token: str) -> int:
+    """允許 '0'-'6' 數字或 'Mon/Tue/...' 名字（大小寫不限），中文「一」「二」等。"""
+    t = token.strip().lower().lstrip('週周星期')
+    if t.isdigit():
+        n = int(t)
+        if 0 <= n <= 6:
+            return n
+        raise ValueError(f'數字超出 0-6: {token}')
+    if t in DAY_NAME_TO_INT:
+        return DAY_NAME_TO_INT[t]
+    raise ValueError(f'無法解析: {token}')
+
+
 def get_working_days() -> set[int]:
-    """從 JIRA_WORKING_DAYS env 讀工作日；格式 '0,1,2,3,4'（0=週一...6=週日）。"""
+    """
+    從 JIRA_WORKING_DAYS env 讀工作日。
+    可接受格式：
+      - 數字：'0,1,2,3,4'（0=週一...6=週日）
+      - 英文名：'Mon,Tue,Wed,Thu,Fri'（大小寫不限）
+      - 中文名：'週一,週二,...' 或 '一,二,三,四,五'
+      - 混合：'Mon,2,Wed,4'
+    """
     raw = os.environ.get('JIRA_WORKING_DAYS', '').strip()
     if not raw:
         return DEFAULT_WORKING_DAYS
     try:
-        days = {int(d.strip()) for d in raw.split(',') if d.strip()}
-        if not days or any(d < 0 or d > 6 for d in days):
-            raise ValueError(f'JIRA_WORKING_DAYS 含無效值: {raw}')
+        days = {_parse_day(t) for t in raw.split(',') if t.strip()}
+        if not days:
+            raise ValueError('未解析出任何工作日')
         return days
     except ValueError as e:
         print(f'⚠ JIRA_WORKING_DAYS 解析失敗（{e}），fallback 用預設週一到週五')
