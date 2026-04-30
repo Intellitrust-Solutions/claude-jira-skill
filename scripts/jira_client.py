@@ -140,8 +140,9 @@ class JiraClient:
                         k = k.strip()
                         if k in all_vars and not values.get(k):
                             values[k] = v.strip().strip('"').strip("'")
-                # 讀完一個檔就停（依優先序）
-                break
+                # 不 break：繼續讀下一個 .env，但 'first wins' 邏輯（上面的 not values.get(k)）
+                # 確保前面的不會被後面覆蓋。這樣專案 .env 與全域 .env 可同時生效，
+                # 缺值能 fallback 到全域。
 
         # JIRA_EPIC_KEY / JIRA_WORKING_DAYS 注入 os.environ，讓其他模組讀得到
         for k in optional_vars:
