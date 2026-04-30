@@ -130,7 +130,7 @@ JIRA_API_TOKEN=$JIRA_API_TOKEN
 JIRA_WORKING_DAYS=$WORKING_DAYS
 EOF
     chmod 600 "$ENV_FILE"
-    echo "✓ 已寫入 ${ENV_FILE}（chmod 600，工作日 $WORKING_DAYS）"
+    echo "✓ 已寫入 ${ENV_FILE}（chmod 600，工作日 ${WORKING_DAYS}）"
 }
 
 run_selftest() {
