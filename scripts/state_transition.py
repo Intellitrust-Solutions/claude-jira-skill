@@ -58,10 +58,15 @@ def find_path(jc: JiraClient, key: str, target: str, max_hops: int = 6) -> list[
         direct = next((t for t in trans if t['to'] == target), None)
         if direct:
             path.append(direct['id'])
+            jc.api('POST', f'/rest/api/3/issue/{key}/transitions',
+                   {'transition': {'id': direct['id']}})
             return path
-        # 挑一個還沒拜訪過且可能前進的
-        candidate = next((t for t in trans if t['to'] not in visited
-                          and t['name'] not in ('CANCEL', 'Pending', 'back')), None)
+        # 挑一個還沒拜訪過且可能前進的（noise filter caseless，避免不同 workflow 模板大小寫差異）
+        NOISE = {'cancel', 'cancelled', 'pending', 'back', 'reject', 'rejected'}
+        candidate = next((t for t in trans
+                          if t['to'] not in visited
+                          and t['name'].strip().lower() not in NOISE
+                          and t['to'].strip().lower() not in NOISE), None)
         if not candidate:
             break
         path.append(candidate['id'])
