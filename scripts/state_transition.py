@@ -112,10 +112,11 @@ def cascade_complete(jc: JiraClient, key: str, target: str,
     parent_key = _get_parent_key(jc, key)
     if not parent_key or parent_key in visited:
         return
-    visited.add(parent_key)
 
     if not _all_siblings_at(jc, parent_key, target):
-        return  # 還有兄弟沒完成
+        return  # 還有兄弟沒完成；不 mark visited，後續其他 subtask 推完還會再來嘗試
+
+    visited.add(parent_key)
 
     parent_status = jc.get_status(parent_key)
     if parent_status == target:
