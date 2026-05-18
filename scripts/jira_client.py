@@ -21,9 +21,32 @@ CLI:
 import os, json, base64, sys, time, subprocess, urllib.request, urllib.error
 from pathlib import Path
 
-# 強制 stdout UTF-8，避免中文在某些環境壞掉
-if hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8')
+
+def ensure_utf8() -> None:
+    """
+    確保整個 Python 行程用 UTF-8 處理 stdout / stderr / argv。
+    在非 utf-8 locale（例如 LANG=en_US, locale=ISO8859-1）下：
+    - sys.argv 啟動時被 ISO8859-1 + surrogateescape 解錯
+    - 用 surrogateescape encode 回原始 bytes、再 utf-8 decode 就能 recover
+    """
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8')
+    enc = (sys.getfilesystemencoding() or '').lower().replace('-', '')
+    if enc not in ('utf8', ''):
+        try:
+            sys.argv = [
+                arg.encode(sys.getfilesystemencoding(), errors='surrogateescape')
+                   .decode('utf-8', errors='replace')
+                for arg in sys.argv
+            ]
+        except (UnicodeEncodeError, UnicodeDecodeError, LookupError):
+            pass  # recover 失敗就維持原樣，不擋 script 跑
+
+
+# import 時自動執行，所有 import jira_client 的 script 都會受惠
+ensure_utf8()
 
 
 def output_path(filename: str) -> Path:

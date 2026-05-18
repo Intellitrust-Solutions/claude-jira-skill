@@ -273,9 +273,36 @@ def compute_module_due(start: date, hours: float,
     return due, next_start
 
 
-def auto_resolve_types(jc: JiraClient) -> tuple[str, str]:
-    """自動挑選 Middle (level=0, non-subtask) 和 Subtask (subtask=true) type id。"""
-    types = jc.issuetypes()
+def _project_issuetypes(jc: JiraClient, project_key: str) -> list[dict] | None:
+    """
+    用 createmeta API 列出該 project 允許的 issue types（project-aware）。
+    失敗回 None，呼叫端用全域 issuetypes() fallback。
+    """
+    try:
+        code, body = jc.api('GET',
+            f'/rest/api/3/issue/createmeta/{project_key}/issuetypes')
+        if code != 200:
+            return None
+        return [{
+            'id': t['id'], 'name': t['name'],
+            'level': t.get('hierarchyLevel'),
+            'subtask': t.get('subtask', False),
+        } for t in body.get('issueTypes', [])]
+    except Exception:
+        return None
+
+
+def auto_resolve_types(jc: JiraClient, project_key: str | None = None) -> tuple[str, str]:
+    """
+    自動挑選 Middle (level=0) 和 Subtask (level=-1 / subtask=true) type id。
+    優先用 project createmeta（避免多 project 同名 type 衝突，例如 IT 專案的
+    「任務」是 10101，全域 issuetypes 第一個「任務」卻是 10004 — workflow scheme 不允許）。
+    createmeta 失敗時 fallback 到全域。
+    """
+    types = _project_issuetypes(jc, project_key) if project_key else None
+    if not types:
+        types = jc.issuetypes()
+
     middle = next((t for t in types if t['level'] == 0 and not t['subtask']
                    and t['name'] in ('任務', 'Task')), None) or \
              next((t for t in types if t['level'] == 0 and not t['subtask']), None)
@@ -283,7 +310,9 @@ def auto_resolve_types(jc: JiraClient) -> tuple[str, str]:
                     and t['name'] in ('Subtask', '子任務')), None) or \
               next((t for t in types if t['subtask']), None)
     if not middle or not subtask:
-        raise RuntimeError('找不到合適的 middle/subtask type')
+        raise RuntimeError(
+            f'找不到合適的 middle/subtask type（project={project_key}）'
+        )
     return middle['id'], subtask['id']
 
 
@@ -327,7 +356,7 @@ def build(plan_path: str, dry_run: bool = False, delay: float = 0.06,
     middle_type = plan.get('middle_type_id') or None
     subtask_type = plan.get('subtask_type_id') or None
     if not middle_type or not subtask_type:
-        mt, st = auto_resolve_types(jc)
+        mt, st = auto_resolve_types(jc, project_key)
         middle_type = middle_type or mt
         subtask_type = subtask_type or st
 

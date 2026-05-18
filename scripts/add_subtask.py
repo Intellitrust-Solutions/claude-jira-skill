@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from jira_client import JiraClient
 from structure_builder import (
     ALLOWED_SUBTASK_HOURS, MAX_MODULE_HOURS, parse_hours_from_jira,
+    _project_issuetypes,
 )
 
 
@@ -66,14 +67,19 @@ def fetch_existing_subtask_hours(jc: JiraClient, module_key: str) -> tuple[float
     return total, items
 
 
-def auto_resolve_subtask_type(jc: JiraClient) -> str:
-    """挑 subtask=true 的 issuetype id。"""
-    types = jc.issuetypes()
+def auto_resolve_subtask_type(jc: JiraClient, project_key: str | None = None) -> str:
+    """
+    挑 subtask=true 的 issuetype id（project-aware）。
+    優先用 project createmeta 避免多 project 同名 type 衝突，fallback 全域 issuetypes。
+    """
+    types = _project_issuetypes(jc, project_key) if project_key else None
+    if not types:
+        types = jc.issuetypes()
     st = next((t for t in types if t['subtask']
                and t['name'] in ('Subtask', '子任務')), None) or \
          next((t for t in types if t['subtask']), None)
     if not st:
-        raise RuntimeError('找不到 subtask issuetype')
+        raise RuntimeError(f'找不到 subtask issuetype（project={project_key}）')
     return st['id']
 
 
@@ -122,7 +128,7 @@ def add_subtask(module_key: str, summary: str, hours: float,
     # 4. POST 新 subtask
     project_key = mfields['project']['key']
     duedate = mfields.get('duedate')
-    subtask_type = auto_resolve_subtask_type(jc)
+    subtask_type = auto_resolve_subtask_type(jc, project_key)
     me = jc.whoami()['accountId']
 
     payload = {
