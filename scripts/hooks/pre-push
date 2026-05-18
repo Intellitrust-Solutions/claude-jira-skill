@@ -22,5 +22,12 @@ if [ ! -f "$GIT_HOOK_PY" ]; then
     exit 0
 fi
 
+# Git 呼叫 hook 時可能清掉 LANG/LC_ALL，導致 Python 預設用 ASCII 寫 stderr，
+# terminal 收到的就會是 utf-8 bytes 被當 latin-1 顯示的亂碼。
+# 強制 utf-8 + 補上 locale fallback。
+export PYTHONIOENCODING=utf-8
+export LC_ALL="${LC_ALL:-C.UTF-8}"
+export LANG="${LANG:-C.UTF-8}"
+
 # 把 git 給 hook 的 stdin 轉給 Python（refs 訊息）
 exec python3 "$GIT_HOOK_PY" pre-push
