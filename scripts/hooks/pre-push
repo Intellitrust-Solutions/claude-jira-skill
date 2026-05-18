@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# claude-jira-skill pre-push hook
+# 安裝方式：install.sh Phase 3 自動 symlink 到 .git/hooks/pre-push
+# 關閉：export JIRA_SKILL_SKIP_HOOK=1
+
+set -e
+
+# 找 skill 目錄（symlink 或硬連結都能解析）
+HOOK_PATH="${BASH_SOURCE[0]}"
+while [ -L "$HOOK_PATH" ]; do
+    LINK_TARGET="$(readlink "$HOOK_PATH")"
+    case "$LINK_TARGET" in
+        /*) HOOK_PATH="$LINK_TARGET" ;;
+        *)  HOOK_PATH="$(dirname "$HOOK_PATH")/$LINK_TARGET" ;;
+    esac
+done
+SKILL_DIR="$(cd "$(dirname "$HOOK_PATH")/.." && pwd)"
+GIT_HOOK_PY="$SKILL_DIR/git_hook.py"
+
+if [ ! -f "$GIT_HOOK_PY" ]; then
+    echo "⚠ 找不到 $GIT_HOOK_PY，pre-push hook 略過" >&2
+    exit 0
+fi
+
+# 把 git 給 hook 的 stdin 轉給 Python（refs 訊息）
+exec python3 "$GIT_HOOK_PY" pre-push

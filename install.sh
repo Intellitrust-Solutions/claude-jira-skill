@@ -249,6 +249,65 @@ EOF
     fi
 fi
 
+# ──────── Phase 3: （可選）安裝 pre-push hook 到專案 ────────
+install_pre_push_hook() {
+    local project_dir="$1"
+    local hook_src="$TARGET_DIR/scripts/hooks/pre-push"
+    local hook_dst="$project_dir/.git/hooks/pre-push"
+
+    if [ ! -d "$project_dir/.git" ]; then
+        echo "  ✗ $project_dir 不是 git repo，跳過"
+        return 1
+    fi
+    if [ ! -f "$hook_src" ]; then
+        echo "  ✗ skill 內找不到 hook 範本：$hook_src"
+        return 1
+    fi
+
+    if [ -e "$hook_dst" ] || [ -L "$hook_dst" ]; then
+        echo "  ⚠ $hook_dst 已存在"
+        read_tty "  覆寫？[y/N]: " OVERWRITE
+        if [[ ! "$OVERWRITE" =~ ^[Yy]$ ]]; then
+            echo "  → 略過"
+            return 1
+        fi
+        rm -f "$hook_dst"
+    fi
+
+    ln -s "$hook_src" "$hook_dst"
+    chmod +x "$hook_src"
+    echo "  ✓ symlink: $hook_dst → $hook_src"
+    echo "  說明：每次 git push 會先掃 commit messages 抽 Jira key，互動推狀態"
+    echo "  關閉：export JIRA_SKILL_SKIP_HOOK=1"
+}
+
+if [ "$INTERACTIVE" = "1" ] && [ "$SELFTEST_OK" = "1" ]; then
+    echo
+    echo "==> Phase 3：（可選）安裝 git pre-push hook 到專案"
+    echo "    push 前會自動掃 commit messages、提示是否推進 Jira 狀態"
+    echo
+    read_tty "現在要裝嗎？[y/N]: " SETUP_HOOK
+    if [[ "$SETUP_HOOK" =~ ^[Yy]$ ]]; then
+        if [ -n "${PROJECT_DIR:-}" ] && [ -d "$PROJECT_DIR/.git" ]; then
+            HOOK_TARGET="$PROJECT_DIR"
+            echo "    用 Phase 2 的專案目錄：$HOOK_TARGET"
+        else
+            DEFAULT_HOOK_DIR="$OLDPWD"
+            [ -z "$DEFAULT_HOOK_DIR" ] && DEFAULT_HOOK_DIR="$PWD"
+            [ "$DEFAULT_HOOK_DIR" = "$TARGET_DIR" ] && DEFAULT_HOOK_DIR="$HOME"
+            echo "    當前目錄為 $DEFAULT_HOOK_DIR"
+            read_tty "    用這個當專案根目錄嗎？[Y/n]: " USE_DEFAULT_HOOK
+            if [[ "$USE_DEFAULT_HOOK" =~ ^[Nn]$ ]]; then
+                read_tty "    請輸入專案完整路徑：" HOOK_TARGET
+            else
+                HOOK_TARGET="$DEFAULT_HOOK_DIR"
+            fi
+            HOOK_TARGET="${HOOK_TARGET/#\~/$HOME}"
+        fi
+        install_pre_push_hook "$HOOK_TARGET"
+    fi
+fi
+
 # ──────── 結束提示 ────────
 echo
 echo "==> 安裝完成"

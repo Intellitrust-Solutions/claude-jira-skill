@@ -12,6 +12,8 @@ description: 分析專案 codebase → 在 Jira 建立三層結構（Epic → �
 - 「在 PROJECT-xxx 底下建 modules 和 tasks」
 - 「依完成度更新狀態」
 - 「重新整理顆粒度」
+- 「審計 Jira 顆粒度合規」（→ `audit_tree.py`）
+- 「補一個 subtask」（→ `add_subtask.py`，禁止用 Jira 網頁手動建）
 - 或透過 slash command：`/jira analyze`、`/jira build`、`/jira test-done` 等
 
 ---
@@ -66,6 +68,10 @@ Epic（大型工作 / hierarchyLevel=1）
 | **預設只動自己的 issue**（assignee 或 reporter）；要動別人需明確加 `--include-others` | `delete_subtree.py` / `state_transition.py` |
 | **批次操作前 mine 過濾**：跳過非本人項並回報數量 | `state_transition.py` |
 | **Cascade 自動推進**：subtask 全完成 → module 完成；module 全完成 → Epic 完成（target 含「完成」才觸發，可 `--no-cascade` 關） | `state_transition.py:cascade_complete()` |
+| **Lv2 顆粒度 pre-flight**：subtask.hours 只能 ∈ {1.5, 2, 2.5, 3}；module 總工時 ≤ 22h；違規硬擋 | `structure_builder.py:validate_plan_granularity()` |
+| **受控追加 subtask**：Jira 網頁手動建會繞過 pre-flight，改走 `add_subtask.py` 強制驗證 | `add_subtask.py` |
+| **事後審計**：抓 Jira 樹比對 Lv2 規則，列出違規（含他人手動建的） | `audit_tree.py` |
+| **Pre-push hook**：push 前自動抽 commit 內的 Jira key、互動推狀態 | `git_hook.py` + `scripts/hooks/pre-push` |
 | **動態查 ID**（issuetype / transition 隨專案異） | 所有 script |
 | **預設 dry-run** for 刪除；要 `--yes` 才真執行 | `delete_subtree.py` |
 | **Test-before-Done**：沒實測不推「完成」 | `workflows/04-test-and-verify.md` |
@@ -88,11 +94,15 @@ python3 ~/.claude/skills/jira/scripts/jira_client.py check-mine PROJECT-XXX
 | 類型 | 路徑 |
 |------|------|
 | 共用 API client | [scripts/jira_client.py](scripts/jira_client.py) |
-| 結構建立 | [scripts/structure_builder.py](scripts/structure_builder.py) |
+| 結構建立（含 Lv2 pre-flight） | [scripts/structure_builder.py](scripts/structure_builder.py) |
+| 受控追加 subtask | [scripts/add_subtask.py](scripts/add_subtask.py) |
+| Lv2 顆粒度審計 | [scripts/audit_tree.py](scripts/audit_tree.py) |
 | 狀態轉換 | [scripts/state_transition.py](scripts/state_transition.py) |
 | 擁有者過濾 | [scripts/ownership_filter.py](scripts/ownership_filter.py) |
 | 子樹刪除 | [scripts/delete_subtree.py](scripts/delete_subtree.py) |
 | 樹狀查詢 | [scripts/query_tree.py](scripts/query_tree.py) |
+| Git pre-push hook 邏輯 | [scripts/git_hook.py](scripts/git_hook.py) |
+| Pre-push hook wrapper | [scripts/hooks/pre-push](scripts/hooks/pre-push) |
 | PHP 測試樣板 | [templates/module_test.php.tmpl](templates/module_test.php.tmpl) |
 | 顆粒度規則 | [references/granularity-rules.md](references/granularity-rules.md) |
 | 狀態機 | [references/workflow-states.md](references/workflow-states.md) |

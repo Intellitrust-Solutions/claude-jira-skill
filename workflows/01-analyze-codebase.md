@@ -55,16 +55,30 @@
 ```
 | 模組 | 包含內容 | 預估工時 | 建議 subtask 數 |
 |------|---------|---------|----------------|
-| 顧客管理 | CustomerController + 3 Vue + Model | 12h | 4–5 |
-| 膚況分析 | SkinAnalysisController + ScoringService + 3 Vue | 20h | 7–8 |
+| 顧客管理 | CustomerController + 3 Vue + Model | 12h | 4 |
+| 膚況分析 | SkinAnalysisController + ScoringService + 3 Vue | 20h | 7 |
 ...
 ```
+
+## Lv2 自審（送進階段 2 前必做）
+
+模組清單產出後，先對每個模組自審：
+
+| 條件 | 處置 |
+|------|------|
+| 模組工時 > 22h | **拆成兩個 module**（不可往下走） |
+| 模組工時 < 1.5h | 併入相鄰模組（這不該獨立成 module） |
+
+> 為什麼在這裡擋？早期擋下省一輪 plan.json 編輯 — 階段 3 的 pre-flight 也會擋但會浪費階段 2 的設計時間。
+
+完整規則見 [references/granularity-rules.md](../references/granularity-rules.md)。
 
 ## 常見錯誤
 
 - ❌ 把每個檔案當模組（太細）
 - ❌ 把整個系統當一個模組（太粗）
 - ❌ 強制湊滿 N 個模組（應該依實際功能域）
+- ❌ 模組工時 > 22h 就硬塞 9+ 個 subtask（要拆模組，不是擴 subtask）
 
 ## 下一步
 

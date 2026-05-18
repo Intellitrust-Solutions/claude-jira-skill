@@ -12,13 +12,21 @@ plan.json 格式：
         {
             "summary": "基礎建設與安全防護",
             "due": "2026-04-23",          // 可選，未給則依 --start-date + subtask 工時自動推算
+            "description": "...",          // 可選，純文字；< 1.5h 的實作細節塞這裡
             "subtasks": [
+                // hours 必須 ∈ {1.5, 2, 2.5, 3}（Lv2 半小時錨點）
                 {"summary": "Laravel + Inertia + Vite 腳手架", "hours": 3},
                 {"summary": "資料庫核心 migration", "hours": 2}
             ]
         }
     ]
 }
+
+Lv2 顆粒度規則（pre-flight 自動驗證）：
+- subtask.hours 只能是 1.5 / 2 / 2.5 / 3
+- module 總工時 ≤ 22h（超過要拆模組）
+- 軟區間 2.0–3.0h（1.5h 會警告）
+- 完整規則：references/granularity-rules.md
 
 工時 → due 推算規則：
 - 每天有效工時 8h（依 references/granularity-rules.md）
@@ -46,6 +54,138 @@ from jira_client import JiraClient, output_path
 
 HOURS_PER_DAY = 8.0
 DEFAULT_WORKING_DAYS = {0, 1, 2, 3, 4}  # 週一到週五
+
+# Lv2 顆粒度規則（references/granularity-rules.md）
+ALLOWED_SUBTASK_HOURS = {1.5, 2.0, 2.5, 3.0}  # 半小時錨點
+SOFT_TARGET_LOWER = 2.0                        # 軟區間下限（1.5h 雖允許但會警告）
+MAX_MODULE_HOURS = 22.0                        # 模組總工時上限
+
+
+def expected_subtask_count(total: float) -> int | None:
+    """模組總工時 → 推薦 subtask 數。回傳 None 表示超出範圍（必須拆模組）。"""
+    if total < 1.5:
+        return 0
+    if total <= 3.0:  return 1
+    if total <= 6.0:  return 2
+    if total <= 9.0:  return 3
+    if total <= 12.0: return 4
+    if total <= 15.0: return 5
+    if total <= 18.0: return 6
+    if total <= 21.0: return 7
+    if total <= 22.0: return 8
+    return None
+
+
+def validate_plan_granularity(plan: dict) -> tuple[list[str], list[str]]:
+    """
+    依 Lv2 規則驗證 plan.json。回傳 (hard_errors, soft_warnings)。
+    硬閘門：
+      - subtask.hours ∉ {1.5, 2, 2.5, 3}
+      - 模組總工時 > 22h
+    軟警告（--force 可略過）：
+      - subtask.hours = 1.5（< 軟下限 2.0h）
+      - subtask 數量與模組總工時不對齊速查表
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    for m_idx, m in enumerate(plan.get('middles', [])):
+        m_label = f'middles[{m_idx}] "{m.get("summary", "<未命名>")}"'
+        subtasks = m.get('subtasks', [])
+        total = sum(s.get('hours', 0) for s in subtasks)
+
+        if total > MAX_MODULE_HOURS:
+            errors.append(
+                f'{m_label}: 總工時 {total}h > {MAX_MODULE_HOURS}h → 拆成兩個 module'
+            )
+
+        for s_idx, s in enumerate(subtasks):
+            s_label = f'{m_label} / subtasks[{s_idx}] "{s.get("summary", "<未命名>")}"'
+            h = s.get('hours')
+            if h is None:
+                errors.append(f'{s_label}: 缺 hours 欄位')
+                continue
+            if h not in ALLOWED_SUBTASK_HOURS:
+                if h < 1.5:
+                    errors.append(
+                        f'{s_label}: hours={h} < 1.5h → 併入 module description，不開 subtask'
+                    )
+                elif h > 3.0:
+                    errors.append(
+                        f'{s_label}: hours={h} > 3h → 拆成 2 個 subtask（每個 ≥ 1.5h）'
+                    )
+                else:
+                    errors.append(
+                        f'{s_label}: hours={h} 不是半小時錨點，'
+                        f'允許值 {sorted(ALLOWED_SUBTASK_HOURS)}'
+                    )
+                continue
+            if h < SOFT_TARGET_LOWER:
+                warnings.append(
+                    f'{s_label}: hours={h} < 軟下限 2.0h（偏細，確認不該併入 description）'
+                )
+
+        if subtasks and 1.5 <= total <= MAX_MODULE_HOURS:
+            expected = expected_subtask_count(total)
+            count = len(subtasks)
+            if expected is not None and count != expected:
+                warnings.append(
+                    f'{m_label}: 總工時 {total}h 建議 {expected} 個 subtask，實際 {count} 個'
+                )
+
+    return errors, warnings
+
+
+def parse_hours_from_jira(timetracking: dict | None) -> float | None:
+    """
+    從 Jira timetracking 欄位讀 hours。
+    Jira 同時提供 originalEstimateSeconds（秒）與 originalEstimate（字串 "3h" / "2h 30m"）。
+    優先用秒數，回傳 float hours；無資料回 None。
+    """
+    if not timetracking:
+        return None
+    secs = timetracking.get('originalEstimateSeconds')
+    if secs is not None:
+        try:
+            return round(float(secs) / 3600.0, 2)
+        except (TypeError, ValueError):
+            pass
+    raw = timetracking.get('originalEstimate')
+    if not raw:
+        return None
+    # 解析 "Xh Ym" 字串
+    total = 0.0
+    cur = ''
+    for ch in str(raw):
+        if ch.isdigit() or ch == '.':
+            cur += ch
+        elif ch in 'hH':
+            if cur:
+                total += float(cur); cur = ''
+        elif ch in 'mM':
+            if cur:
+                total += float(cur) / 60.0; cur = ''
+        elif ch in 'dD':
+            if cur:
+                total += float(cur) * 8.0; cur = ''  # 1d = 8h
+    return round(total, 2) if total > 0 else None
+
+
+def text_to_adf(text: str) -> dict | None:
+    """純文字 → Atlassian Document Format（每行一段 paragraph）。空字串回 None。"""
+    if not text or not text.strip():
+        return None
+    content = []
+    for line in text.split('\n'):
+        line = line.rstrip()
+        if line:
+            content.append({
+                'type': 'paragraph',
+                'content': [{'type': 'text', 'text': line}],
+            })
+        else:
+            content.append({'type': 'paragraph', 'content': []})
+    return {'type': 'doc', 'version': 1, 'content': content}
 
 
 DAY_NAME_TO_INT = {
@@ -148,8 +288,34 @@ def auto_resolve_types(jc: JiraClient) -> tuple[str, str]:
 
 
 def build(plan_path: str, dry_run: bool = False, delay: float = 0.06,
-          include_others: bool = False, start_date: str | None = None) -> dict:
+          include_others: bool = False, start_date: str | None = None,
+          check_only: bool = False, strict: bool = False, force: bool = False) -> dict:
     plan = json.loads(Path(plan_path).read_text(encoding='utf-8'))
+
+    # Lv2 顆粒度 pre-flight（在 connect Jira 之前先擋）
+    errors, warnings = validate_plan_granularity(plan)
+    if errors:
+        print('✗ Pre-flight 硬閘門擋下，請修正：')
+        for e in errors:
+            print(f'  - {e}')
+        raise SystemExit(1)
+    if warnings:
+        print('⚠ Pre-flight 軟警告：')
+        for w in warnings:
+            print(f'  - {w}')
+        if strict:
+            print('--strict：軟警告視為錯誤，停止')
+            raise SystemExit(1)
+        if not force and not check_only:
+            print('要繼續請加 --force（dry-run 也適用）；或修正後重跑')
+            raise SystemExit(1)
+    else:
+        print('✓ Pre-flight 全部通過')
+
+    if check_only:
+        print('--check-only：僅驗證，不連 Jira、不上傳')
+        return {'check_only': True, 'errors': errors, 'warnings': warnings}
+
     jc = JiraClient.from_env()
 
     epic_key = plan['epic_key']
@@ -215,16 +381,18 @@ def build(plan_path: str, dry_run: bool = False, delay: float = 0.06,
                 print(f'    └── {s["summary"]}')
             continue
 
-        payload = {
-            'fields': {
-                'project': {'key': project_key},
-                'issuetype': {'id': middle_type},
-                'summary': m['summary'],
-                'duedate': module_due,
-                'assignee': {'accountId': account},
-                'parent': {'key': epic_key},
-            }
+        fields = {
+            'project': {'key': project_key},
+            'issuetype': {'id': middle_type},
+            'summary': m['summary'],
+            'duedate': module_due,
+            'assignee': {'accountId': account},
+            'parent': {'key': epic_key},
         }
+        adf_desc = text_to_adf(m.get('description', ''))
+        if adf_desc:
+            fields['description'] = adf_desc
+        payload = {'fields': fields}
         code, body = jc.api('POST', '/rest/api/3/issue', payload)
         if code not in (200, 201):
             result['failed'].append({'middle': m['summary'], 'code': code, 'body': body})
@@ -234,16 +402,19 @@ def build(plan_path: str, dry_run: bool = False, delay: float = 0.06,
         time.sleep(delay)
 
         for s in m.get('subtasks', []):
-            spayload = {
-                'fields': {
-                    'project': {'key': project_key},
-                    'issuetype': {'id': subtask_type},
-                    'summary': s['summary'],
-                    'duedate': module_due,
-                    'assignee': {'accountId': account},
-                    'parent': {'key': mid_key},
-                }
+            sfields = {
+                'project': {'key': project_key},
+                'issuetype': {'id': subtask_type},
+                'summary': s['summary'],
+                'duedate': module_due,
+                'assignee': {'accountId': account},
+                'parent': {'key': mid_key},
             }
+            # 把 hours 寫進 timetracking.originalEstimate，供 audit_tree.py / add_subtask.py 後續審計
+            s_hours = s.get('hours')
+            if s_hours:
+                sfields['timetracking'] = {'originalEstimate': f'{s_hours}h'}
+            spayload = {'fields': sfields}
             sc, sb = jc.api('POST', '/rest/api/3/issue', spayload)
             if sc in (200, 201):
                 result['subtasks'].append({'key': sb['key'], 'parent': mid_key, 'summary': s['summary']})
@@ -268,8 +439,15 @@ def _cli():
                                           'plan.json 內如有 module 級 due 仍優先使用')
     ap.add_argument('--include-others', action='store_true',
                     help='⚠ 危險：允許把任務 assign 給非當前使用者（預設只 assign 給自己）')
+    ap.add_argument('--check-only', action='store_true',
+                    help='只跑 Lv2 顆粒度 pre-flight 驗證，不連 Jira、不上傳')
+    ap.add_argument('--strict', action='store_true',
+                    help='軟警告也視為錯誤')
+    ap.add_argument('--force', action='store_true',
+                    help='略過軟警告（硬閘門仍擋）')
     args = ap.parse_args()
-    build(args.plan, args.dry_run, args.delay, args.include_others, args.start_date)
+    build(args.plan, args.dry_run, args.delay, args.include_others, args.start_date,
+          args.check_only, args.strict, args.force)
 
 
 if __name__ == '__main__':

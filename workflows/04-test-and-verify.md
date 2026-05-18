@@ -60,6 +60,27 @@ python3 scripts/state_transition.py --from ~/.cache/jira-skill/module_test_resul
 - 模組 FAIL → 該模組 + 所有 subtask 停在「進行中」
 - 部分 FAIL → 只推 PASS 的模組
 
+## 測試發現新工作？走受控追加入口
+
+測試失敗後常會發現「需要補一個 bug fix subtask」。**禁止直接到 Jira 網頁手動建** — 用 `add_subtask.py`：
+
+```bash
+python3 scripts/add_subtask.py <MODULE_KEY> --summary "修 X 的 Y bug" --hours 2
+```
+
+它會自動：
+- 檢查 hours ∈ {1.5, 2, 2.5, 3}
+- 檢查加完後模組總工時 ≤ 22h（保護 Lv2）
+- 繼承 module 的 duedate / project / parent
+
+跑完一輪後審計整個 Epic：
+
+```bash
+python3 scripts/audit_tree.py <EPIC_KEY> --only-violations
+```
+
+列出所有 Lv2 違規（手動建的 subtask 也會被抓出來）。
+
 ## 手動端對端測試建議
 
 專案若有 UI，按鍵盤步驟也要測：
