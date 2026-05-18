@@ -32,7 +32,10 @@ if hasattr(sys.stderr, 'reconfigure'):
 sys.path.insert(0, str(Path(__file__).parent))
 
 ZERO_SHA = '0' * 40
-JIRA_KEY_RE = re.compile(r'\b([A-Z][A-Z0-9]+-\d+)\b')
+# Jira key 抽取：要求 prefix 純字母（至少 2 個）、前後不接字母數字。
+# 避免誤抓 commit 中的 "ISO8859-1" / "ABC2024-1" 之類含數字的 token。
+# 多數 Jira project key 是純字母 prefix；含數字的少見專案會漏抓，由「key 存在驗證」二次擋下。
+JIRA_KEY_RE = re.compile(r'(?<![A-Za-z0-9])([A-Z]{2,}-\d+)(?![A-Za-z0-9])')
 
 
 def log(msg: str = '') -> None:
@@ -171,14 +174,27 @@ def pre_push() -> int:
         log(f'⚠ Jira 連線失敗（{e}），跳過互動，push 繼續')
         return 0
 
-    log('')
-    log(f'本次 push 提到 {len(keys)} 個 Jira ticket：')
+    # 對每個 candidate key 查 Jira；不存在或抓不到（regex 誤抓的非 Jira token）就 skip
+    valid = []
     statuses = {}
     for k in keys:
         try:
-            statuses[k] = jc.get_status(k)
+            s = jc.get_status(k)
         except Exception:
-            statuses[k] = '?'
+            continue  # API 失敗（網路問題或 key 不存在 404）
+        if not s:
+            continue  # 空狀態 — 不存在的 key
+        valid.append(k)
+        statuses[k] = s
+
+    if not valid:
+        log('')
+        log('⚠ 抽到的 key 在 Jira 都查不到（regex 可能誤抓非 Jira token），push 繼續')
+        return 0
+
+    log('')
+    log(f'本次 push 提到 {len(valid)} 個 Jira ticket：')
+    for k in valid:
         log(f'  - {k} [{statuses[k]}]')
 
     log('')
@@ -193,9 +209,9 @@ def pre_push() -> int:
         log('  → 中止 push')
         return 1
     if choice.startswith('t'):
-        run_state_transition(keys, '測試中')
+        run_state_transition(valid, '測試中')
     elif choice.startswith('d'):
-        run_state_transition(keys, '完成')
+        run_state_transition(valid, '完成')
     else:
         log('  → 跳過，繼續 push')
 
